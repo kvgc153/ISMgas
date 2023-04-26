@@ -1,6 +1,9 @@
 ### Usage 
 
 ```python
+from ISMgas.spectra import AnalyzeSpectra
+from ISMgas.SupportingFunctions import load_pickle, plotWithError
+
 obj = AnalyzeSpectra(
     objid           = "stack",
     spec_filename   = "stack.fits",
