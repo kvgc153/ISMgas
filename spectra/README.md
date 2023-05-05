@@ -1,7 +1,7 @@
 ### Usage 
 
 ```python
-from ISMgas.spectra import AnalyzeSpectra
+from ISMgas.spectra.AnalyzeSpectra import AnalyzeSpectra
 from ISMgas.SupportingFunctions import load_pickle, plotWithError
 
 obj = AnalyzeSpectra(
