@@ -25,7 +25,3 @@ flowchart TD
 
 - ['Resolved velocity profiles of galactic winds at Cosmic Noon' by Vasan G.C., et al (2022)](https://ui.adsabs.harvard.edu/abs/2022arXiv220905508K/abstract).
 
-
-### Licence 
-[MIT Licence](LICENCE)
-
