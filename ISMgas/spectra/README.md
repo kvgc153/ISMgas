@@ -1,4 +1,34 @@
-### Usage 
+## Usage 
+
+### Preprocessing
+
+Save the spectra into a common format that the module can parse. 
+This is essential as data is obtained from instruments on multiple telescopes and uses pipelines which output the data in multiple formats.
+
+This module requires the following quantity and units:
+
+| Quantity | Units |
+| -------- | ------|
+| Wavelength | Angstrom |
+| Flux | Arbitrary |
+| Flux(sigma) | 1 sigma uncertainity|
+
+Use the save_spectra function to save these into a .fits file 
+
+```python
+from ISMgas.SupportingFunctions import save_spectra
+save_spectra(
+    wave, 
+    flux, 
+    error, 
+    fileName = 'stack', 
+    folderPrefix = ''
+)
+
+## Spectra saved as stack.fits
+```
+
+### Analysis
 
 ```python
 from ISMgas.spectra.AnalyzeSpectra import AnalyzeSpectra
