@@ -16,6 +16,11 @@ ISMgasPlot = {
         'dpi'         : 100,
         'facecolor'   : 'white',
         'bbox_inches' : 'tight'
+    },
+    'errorplot':{
+        'capsize'         : 3, 
+        'elinewidth'      : 1, 
+        'markeredgewidth' :1.5    
     }
 }
 
@@ -53,3 +58,5 @@ color_pal_kvgc = {
         (109/255,  40/255 , 24/255)
         ]
 }
+
+

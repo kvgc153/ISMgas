@@ -1,12 +1,13 @@
-
 import os
 import pickle
 
 import numpy as np
 import pandas as pd
+import glob
 
 import scipy.stats as stat
 from scipy import interpolate
+import scipy.interpolate as interp
 from scipy.constants import c, pi
 c_kms = c*1e-3
 
@@ -23,6 +24,10 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.table import Table
+from astropy import units
+
+import astroscrappy
+import json
 
 #########################
 ## Astronomy utilities ##
@@ -31,12 +36,28 @@ def convertDegreesToHMS(ra_deg:float ,dec_deg:float)->str:
     '''
     returns ra and dec in hms from degrees using astropy
     '''
-    c = SkyCoord(ra=ra_deg*u.degree, dec=dec_deg*u.degree)
+    c = SkyCoord(
+        ra    = ra_deg*u.degree,
+        dec   = dec_deg*u.degree
+    )
     return(c.to_string('hmsdms').replace('h',':').replace('d',':').replace('m',':').replace('s',''))
 
 
-def save_spectra(wave, flux, error, fileName, folderPrefix = ''):
+def saveSpectra(wave, flux, error, fileName, folderPrefix = ''):
+    return(save_spectra(wave, flux, error, fileName, folderPrefix))
 
+def save_spectra(wave, flux, error, fileName, folderPrefix = ''):
+    """
+    Utility function to save spectra as a fits file (legacy function). 
+    Use saveSpectra instead.
+
+    Args:
+        wave                            : Wavelength
+        flux                            : Flux
+        error                           : Error
+        fileName                        : filename to save as fits
+        folderPrefix (str, optional)    : folder prefix. Defaults to ''.
+    """
     t             = Table()
     t['LAMBDA']   = [wave]
     t['SPEC']     = [flux]
@@ -46,6 +67,43 @@ def save_spectra(wave, flux, error, fileName, folderPrefix = ''):
     t.write(folderPrefix+"%s.fits"%(fileName),overwrite=True)
 
     print("Written file to " + folderPrefix+"%s.fits"%(fileName))
+    
+    
+def removeCosmicRays(data, sigclip=2, objlim=2, readnoise=4, verbose=True):
+    """
+    Returns cosmic ray cleaned data and mask
+
+    Args:
+        data, 
+        sigclip (int, optional)   : Defaults to 2.
+        objlim (int, optional)    : Defaults to 2.
+        readnoise (int, optional) : Defaults to 4.
+        verbose (bool, optional)  : Defaults to True.
+    """
+    mask, clean_data = astroscrappy.detect_cosmics(
+        data, 
+        sigclip   = sigclip,
+        objlim    = objlim,
+        readnoise = readnoise,
+        verbose   = Truverbosee
+    )    
+    
+    return(clean_data, mask)
+
+def makeMedianFolder(folder,objid):
+    "Make median for a bunch of files in a folder"
+    filenames = glob.glob(folder+"*.fits")
+    data = []
+    for i in filenames:
+        data.append(fits.getdata(i))
+        
+    data=np.array(data)
+    data_median = np.median(data,axis=0)
+
+    hdr = fits.getheader(filenames[0])
+    hdu = fits.PrimaryHDU(data_median.astype(np.float32),header=hdr)
+    hdu.writeto(folder+objid+"_median.fits",overwrite=True)
+
 
 ############
 ### Math ###
@@ -58,6 +116,49 @@ def interpolateData(x, y, xnew):
     fInter  = interpolate.interp1d(x, y)
     return fInter(xnew)
 
+
+def interpolate2D_scatter(x,y,z, xinterp, yinterp, delta_x, delta_y, units='kpc'):
+    """
+    Interpolate a set of (x,y,z) scatter points onto (xinterp, yinterp).
+    Uses scipy's CloughTocher2DInterpolator.
+
+    Args:
+        x (_type_): _description_
+        y (_type_): _description_
+        z (_type_): _description_
+        xinterp (_type_): _description_
+        yinterp (_type_): _description_
+        delta_x (_type_): _description_
+        delta_y (_type_): _description_
+        units (str, optional): _description_. Defaults to 'kpc'.
+    """
+    interpolator = interp.CloughTocher2DInterpolator(
+        np.array([x,y]).T, 
+        z, 
+        fill_value=np.nan, 
+        maxiter=1000
+    )
+
+    xgrid,ygrid = np.meshgrid(xinterp, yinterp)
+
+    z_interp = interpolator(xgrid, ygrid)
+    
+    
+    ## Store results as a HDU ##
+    hdu = fits.PrimaryHDU()
+    hdu.data = z_interp
+    
+    hdu.header['CRVAL1'] = xinterp[0]
+    hdu.header['CRVAL2'] = yinterp[0]
+    hdu.header['CUNIT1'] = units
+    hdu.header['CUNIT2'] = units
+    
+    hdu.header['CD1_1'] = delta_x
+    hdu.header['CD1_2'] = 0    
+    hdu.header['CD2_1'] = 0       
+    hdu.header['CD2_2'] = delta_y
+
+    return([[xgrid, ygrid, z_interp], hdu])
 
 def returnWeightedArray(Nsm, spec, ivar, wave_rest):
     '''
@@ -129,15 +230,43 @@ def medianMAD(array):
     
     return(mu, sigma)
 
+
+def printStats(qty):
+    """Prints some basic statistics of a quantity array
+
+    Args:
+        qty (np.array): Quantity array
+    """
+    print("----------")
+    print("min: ", np.min(qty))
+    print("max: ", np.max(qty))
+    limits = plotHistogram(qty, plotting = False)
+
+    print("Median: ", limits[0])
+    print("1sigma: ", limits[1])
+    print("----------")
+    
 def chooseAndPropError(x, xerr, y, yerr, n = 1000):
     '''
-    This function propagates the errors by randomly sampling the quantities 
-    within the errors provided. Assumes a normal distribution for the xerr and yerr quantities.
+    This function takes in arrays (x,xerr) and (y,yerr) and computes what is the 
+    difference between x and y by randomly sampling the quantities assuming a 
+    normal distribution.
+    
+    Use Case: 
+    
+    Say x = velocity measured by person 1 and y = velocity measured by person 2. 
+    You want to want how the velocities measured by person 1 differ from those of 
+    person 2. You can pass (x, xerr, y, yerr) and this function will give you the 
+    mean and std how they vary. 
     
     Input:
     
-    x, xerr: DG fit quantity and its error
-    y, yerr: SG fit quantity and its error
+    x, xerr: quantity (1) and its error
+    y, yerr: quantity (2) and its error
+    
+    Output: 
+    
+    Mean(Diff(x-y)), std(Diff(x-y)) along with the errors.
         
     '''
     assert ((len(x) == len(y)) and (len(x) == len(xerr)) and (len(y) == len(yerr))), "Ensure that length of arrays are same"
@@ -160,6 +289,22 @@ def chooseAndPropError(x, xerr, y, yerr, n = 1000):
     print("Mean:%d $\pm$ %d, St.Dev: %d $\pm$ %d"%(np.mean(allValues), np.std(allValues),np.mean(allStds),np.std(allStds)))
     return([np.mean(allValues), np.std(allValues),np.mean(allStds),np.std(allStds)])
 
+
+def rotatePoints(x,y, xcenter, ycenter, theta):
+    """
+    Rotates (x,y) by theta (counter clockwise is position) and returns the output
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    theta_ra = np.deg2rad(theta)
+        
+    x00 = -xcenter + np.cos(theta_ra) * (x + xcenter) - np.sin(theta_ra) * (y + ycenter)
+    x01 = -ycenter + np.sin(theta_ra) * (x + xcenter) + np.cos(theta_ra) * (y + ycenter)   
+        
+        
+    return(x00, x01)
+
+
 ###############################
 ### Uncategorized functions ###
 ###############################
@@ -171,6 +316,17 @@ def save_as_pickle(arrayToSave,fileName:str):
 def load_pickle(fileName:str):
     return(pickle.load( open(fileName, "rb" ) ))
 
+
+def save_as_JSON(dictToSave, fileName:str):
+    with open(fileName, 'w') as fp:
+        json.dump(dictToSave, fp)
+    print("file saved to: "+fileName)
+
+def load_JSON(fileName:str):
+    with open(fileName, 'r') as fp:
+        json_dict = json.load(fp)
+    return(json_dict)
+
 def image_to_HTML(path:str,width=600):
     return '<img src="'+ path + '" width="'+ str(width)+'" >'
 
@@ -181,6 +337,25 @@ def makeDirectory(folder):
     except OSError:
         if not os.path.isdir(folder):
             raise
+        
+def getNestedArrayValue(db, keys):
+    '''
+    If db ={
+        'x':{
+            'y':{
+                'z':3
+            }
+        }
+    }
+    then getNestdArrayValue(db, ['x','y','z']) returns the value 3 
+    getNestdArrayValue(db, ['x','y']) returns {'z':3}
+    '''
+    value = db
+    for i in range(len(keys)):
+        value = value.get(keys[i])
+        
+    return(value)
+                
 
 ###############################
 ##### Operations on Images ####
@@ -191,7 +366,6 @@ def image_array(filename:str):
 
 def display_image(filename:str):
     return(plt.imshow(mpimg.imread(filename)))
-
 
 ###########################
 ########## Plots ###############
@@ -237,29 +411,34 @@ def beautifyPlot(kwargs):
     for key, arguments in kwargs.items():
         function = pltFunctions.get(key, False)
         if function:
-            function(**arguments)
+            if(isinstance(arguments,dict)):
+                function(**arguments)
+                
+            if(isinstance(arguments,list)):
+                function(*arguments)
         else:
             print(f"Function {key} is not supported!")
 
 
+
 def plotWithError(x, y, yerr, sigmaLimit = 1, label = 'data', **kwargs):
     "By default plots x,y and 1 sigma error region"
-    
     plt.plot(
         x,
         y,
-        alpha       = 0.8,
+        alpha       = kwargs.get('alpha', 0.8),
         linewidth   = kwargs.get('linewidth', 3),
         label       = label,
-        color       = color_pal_kvgc['pub1'][16]
-    )
+        color       = kwargs.get('color', color_pal_kvgc['pub1'][16]),
+        linestyle   = kwargs.get('linestyle', '-')
+    )   
 
     plt.fill_between(
         x,
         y - yerr * sigmaLimit,
         y + yerr * sigmaLimit,
-        alpha       = 0.5,
-        facecolor   = color_pal_kvgc['pub1'][7]
+        alpha       = kwargs.get('sigmaAlpha', color_pal_kvgc['pub1'][7]),
+        facecolor   = kwargs.get('facecolor', color_pal_kvgc['pub1'][7])
     )
 
 
@@ -339,13 +518,360 @@ def plotHistogram(
 
     return(mu,sigma)
 
-def drawRectange(x,
-                 y,
-                 deltax,
-                 deltay,
-                 linewidth=1,
-                 edgecolor='r',
-                 facecolor='none'):
+def drawRectange(
+    x,y,
+    deltax,deltay,
+    linewidth=1,edgecolor='r',facecolor='none'):
+    """
+    Create a matplotlib rectangle patch
+
+    Args:
+        x                           : x
+        y                           : y
+        deltax                      : length in x
+        deltay                      : length in y
+        linewidth (int, optional)   : Defaults to 1.
+        edgecolor (str, optional)   : Defaults to 'r'.
+        facecolor (str, optional)   : Defaults to 'none'.
+    """
     rect = patches.Rectangle((x, y), deltax,deltay,linewidth=linewidth, edgecolor=edgecolor, facecolor=facecolor)
     return(rect)
+
+def cbarLegendPatch(color, label, **kwargs):
+    """
+    Returns a cbar patch.
+    
+    Usage:
+    red_patch = cbarLegendPatch('red', 'The red data')
+    plt.legend(handles=[red_patch])
+
+    Args:
+        color (_type_): _description_
+        label (_type_): _description_
+    """
+    return(patches.Patch(color=color, label=label, **kwargs))
+
+def cbarFontsize(fontsize):
+    "Adjust matplotlib colorbar fontsize"
+    cbar = plt.colorbar()
+    cbar.ax.tick_params(labelsize=fontsize)
+
+def discreteCMap(cmap, n):
+    "Returns a discrete colormap with n colors"
+    return(plt.get_cmap(cmap,n))
+
+
+def runCMD(cmd):
+    os.system(cmd)
 ###########################
+
+################################
+#### kvgc only use functions ####
+################################
+from cdfutils.cdfutils.coords import matrix_to_rot, cdmatrix_to_rscale   
+from ISMgas.globalVars import *
+from ISMgas.linelist import linelist_highz
+
+
+def airtovac(wave):
+    """ Convert air-based wavelengths to vacuum.
+    This code is from pypeit.core.wave.py. https://pypeit.readthedocs.io/en/release/_modules/pypeit/core/wave.html#airtovac
+
+    Parameters
+    ----------
+    wave: `astropy.units.Quantity`_
+        Wavelengths to convert
+
+    Returns
+    -------
+    new_wave: `astropy.units.Quantity`_
+        Wavelength array corrected to vacuum wavelengths
+    """
+    # Convert to AA
+    wave = wave.to(units.AA)
+    wavelength = wave.value
+
+    # Standard conversion format
+    sigma_sq = (1.e4/wavelength)**2. #wavenumber squared
+    factor = 1 + (5.792105e-2/(238.0185-sigma_sq)) + (1.67918e-3/(57.362-sigma_sq))
+    factor = factor*(wavelength>=2000.) + 1.*(wavelength<2000.) #only modify above 2000A
+
+    # Convert
+    wavelength = wavelength*factor
+    # Units
+    new_wave = wavelength*units.AA
+    new_wave.to(wave.unit)
+
+    return new_wave
+
+def vactoair(wave):
+    """Convert to air-based wavelengths from vacuum
+    This code is from pypeit.core.wave.py. https://pypeit.readthedocs.io/en/release/_modules/pypeit/core/wave.html#airtovac
+
+    Parameters
+    ----------
+    wave: `astropy.units.Quantity`_
+        Wavelengths to convert
+
+    Returns
+    -------
+    new_wave: `astropy.units.Quantity`_
+        Wavelength array corrected to air
+
+    """
+    # Convert to AA
+    wave = wave.to(units.AA)
+    wavelength = wave.value
+
+    # Standard conversion format
+    sigma_sq = (1.e4/wavelength)**2. #wavenumber squared
+    factor = 1 + (5.792105e-2/(238.0185-sigma_sq)) + (1.67918e-3/(57.362-sigma_sq))
+    factor = factor*(wavelength>=2000.) + 1.*(wavelength<2000.) #only modify above 2000A
+
+    # Convert
+    wavelength = wavelength/factor
+    new_wave = wavelength*units.AA
+    new_wave.to(wave.unit)
+
+    return new_wave
+
+
+def overlayAllLines(zfactor =1, lowion=True, highion=True, opthin=True, stellar=True, nebem=True, fineem=True, scaleAlpha = 1):
+    ## zfactor  = (1+zs)/(1+zinterving) -- zfactor = 1 for zinterving = zs
+    
+    for i in linelist_highz.keys():
+        if(linelist_highz[i].get('lowion') is not None and lowion==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'blue', alpha = scaleAlpha*0.7)
+
+        if(linelist_highz[i].get('highion') is not None and highion==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'purple', alpha = scaleAlpha*0.7)
+
+        if(linelist_highz[i].get('opthin') is not None and opthin==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'yellowgreen', alpha = scaleAlpha*0.7)        
+
+        if(linelist_highz[i].get('stellar') is not None and stellar==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'orange', linestyle= '--', alpha = scaleAlpha*0.7)
+
+        if(linelist_highz[i].get('nebem') is not None and nebem==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'cornflowerblue' ,linestyle='dotted', alpha = scaleAlpha*0.7)        
+            
+        if(linelist_highz[i].get('fineem') is not None and fineem==True):
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'cornflowerblue' ,linestyle='--', alpha = scaleAlpha*0.9)        
+
+
+def plotUVSpectra(xdata, ydata, ydataerr, xlim, ylim =[0,2]):
+    "Usage : plotUVSpectra(STACK_WAV, STACK_FLUX, 0.05*np.ones(np.shape(STACK_FLUX)), [1200,1350])"
+    
+    plt.figure(figsize=(12,5))
+    plotWithError(
+        xdata, 
+        ydata,
+        ydataerr,
+        linewidth = 1.5
+    )
+
+    overlayAllLines()
+
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    
+def bin_ndarray(ndarray, new_shape, operation='sum'):
+    """
+    Bins an ndarray in all axes based on the target shape, by summing or
+        averaging.
+
+    Number of output dimensions must match number of input dimensions and
+        new axes must divide old ones.
+
+    Example
+    -------
+    >>> m = np.arange(0,100,1).reshape((10,10))
+    >>> n = bin_ndarray(m, new_shape=(5,5), operation='sum')
+    >>> print(n)
+
+    [[ 22  30  38  46  54]
+     [102 110 118 126 134]
+     [182 190 198 206 214]
+     [262 270 278 286 294]
+     [342 350 358 366 374]]
+
+    Taken from stackexchange [ https://stackoverflow.com/questions/8090229/resize-with-averaging-or-rebin-a-numpy-2d-array]
+
+    """
+    operation = operation.lower()
+    if not operation in ['sum', 'mean']:
+        raise ValueError("Operation not supported.")
+    if ndarray.ndim != len(new_shape):
+        raise ValueError("Shape mismatch: {} -> {}".format(ndarray.shape,
+                                                           new_shape))
+    compression_pairs = [(d, c//d) for d,c in zip(new_shape,
+                                                  ndarray.shape)]
+    flattened = [l for p in compression_pairs for l in p]
+    ndarray = ndarray.reshape(flattened)
+    for i in range(len(new_shape)):
+        op = getattr(ndarray, operation)
+        ndarray = op(-1*(i+1))
+    return ndarray
+
+
+def splitDataCube(filename, nchannels):
+    """
+    Split a datacube into nchannels. 
+    Typically used to split DECALS image into 3 channels.
+
+    Args:
+        filename (_type_): _description_
+        nchannels (_type_): _description_
+    """
+    data        = fits.getdata(filename)
+    hdr         = fits.getheader(filename)
+    wcshst      = WCS(hdr)
+    wcshst_2d   = wcshst.dropaxis(2)
+    
+    for i in range(nchannels):
+        ## make dummy hdu and header
+        hduFoo        = fits.PrimaryHDU()
+        hduFoo.data   = data[i]
+        
+        hdrFoo        = hduFoo.header
+        hdrFoo.update(wcshst_2d.to_header())
+        
+        hduFoo.writeto(filename.split('.fits')[0] + "_" + str(i) +".fits", overwrite=True)
+    
+
+def processCDMatrix(fileName):
+    '''
+    returns a dict containing pa and pixel scale given an input fits file
+    uses cdfutils.
+    '''
+    
+    data_hdr = fits.getheader(filename=fileName)
+    print(data_hdr['CD1_1'])
+    print(data_hdr['CD1_2'])
+    print(data_hdr['CD2_1'])
+    print(data_hdr['CD2_2'])
+
+    PA_measured = matrix_to_rot(
+        matrix = np.matrix([
+            [data_hdr['CD1_1'],data_hdr['CD1_2']],
+            [data_hdr['CD2_1'],data_hdr['CD2_2']]
+        ])
+    )
+
+    print("Measured PA using cdfutils: ", PA_measured)
+
+    pixscale_measured = cdmatrix_to_rscale(
+        cdmatrix = np.matrix([
+            [data_hdr['CD1_1'],data_hdr['CD1_2']],
+            [data_hdr['CD2_1'],data_hdr['CD2_2']]
+        ])
+    )
+    print("Pixel scale is :", pixscale_measured)    
+    
+    return({'PA': PA_measured, 'pixscale': pixscale_measured})
+
+def save_to_MARZ(wav, spec, sigma, filename):
+    """Saves (wav,spec, sigma) from a spectra in a format that MARZ recognizes.
+    UNDER CONSTRUCTION
+
+    Args:
+        wav (np.array): Wavelength
+        spec (np.array): Flux
+        sigma (np.array): 1 sigma uncertainity
+        filename (string): Filename
+    """
+
+    hdu  = fits.PrimaryHDU(spec)
+    hdr  = hdu.header
+    hdr['CUNIT1'] = 'ANGSTROM'
+    hdr['CRPIX1'] = 1    
+    hdr['CRVAL1'] = wav[0]
+    hdr['CDELT1'] = np.diff(wav)[0]
+    
+   
+    hdu_var  = fits.ImageHDU(sigma**2, header=hdr)
+    print(hdu_var.header)
+    hdu_list = fits.HDUList([hdu, hdu_var])
+
+    hdu_list.writeto(f'{filename}.fits', overwrite=True)
+
+
+def generateHTMLReport(objids):
+    df = pd.DataFrame()
+    for obj_id in objids:
+        df1 = pd.DataFrame(
+            [
+                [
+                image_to_HTML('%s.png'%(obj_id)),        
+                image_to_HTML('%s_HST_fitscgi.jpg'%(obj_id)),       
+                image_to_HTML('%s-smooth-spectra.png'%(obj_id)),             
+                image_to_HTML('%s-all-lines-lowions.png'%(obj_id)), 
+                image_to_HTML('%s-lines-verticalstack.png'%(obj_id)), 
+                
+                image_to_HTML('%s-outflow-profile.png'%(obj_id)),             
+                image_to_HTML('%s-outflow-profile-deconvoled.png'%(obj_id)),
+                image_to_HTML('%s-fit-continuum.png'%(obj_id)),
+            
+                image_to_HTML('%s-outflow-lines.png'%(obj_id)),                          
+                image_to_HTML('%s-residual.png'%(obj_id)),
+                
+                image_to_HTML('%s-all-lines-highions.png'%(obj_id)),
+                image_to_HTML('%s-fineem-lines.png'%(obj_id)),
+                image_to_HTML('%s-nebem-lines.png'%(obj_id)),
+                image_to_HTML('%s-opthin-lines.png'%(obj_id)),
+                image_to_HTML('%s-stellar-lines.png'%(obj_id))
+
+                ]
+            ],
+                columns = [
+                    'DECALS/HSC image',
+                    'HST image',
+                    'Smoothed spectra',    
+                    'ISM lines used (with range)',  
+                    'ISM lines used (vertical stack)',  
+
+                    'Outflow profile',
+                    'Outflow profile (deconvolved)',
+                    'Outflow profile (continuum fit)',
+                
+                    'ISM lines used',
+                    'Residual (fitting)',
+
+                    'High ionization lines',
+                    'Fine structure emission lines',
+                    'Nebular emission lines',
+                    'Optically thin lines',
+                    'Stellar absorption lines'
+                ]
+
+        )
+        df = pd.concat([df, df1], ignore_index=True)                
+    pd.set_option('display.max_colwidth', None)
+    print("Summary of results saved to Results/Summary.html")
+    df.to_html('Summary.html', escape=False)    
+    
+    
+def runningMedian(x,y,nbins):
+    """
+    Returns running median of y as a function of x
+
+    Args:
+        x (numpy.array): x array
+        y (numpy.array)): y array
+        nbins (int): Number of bins
+    """
+    
+    bins    = np.linspace(x.min(),x.max(), nbins)
+    delta   = bins[1]-bins[0]
+    idx     = np.digitize(x,bins)
+    running_median = [np.median(y[idx==k]) for k in range(nbins)]
+    
+    return(bins-delta/2,running_median)
+
+
+
+
+
+###########################
+
+

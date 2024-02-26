@@ -13,6 +13,9 @@ from matplotlib.pyplot import cm
 from astropy.io import fits
 from astropy.table import Table
 
+## scipy
+from scipy.ndimage import gaussian_filter, gaussian_filter1d
+
 ## Custom packages
 from ISMgas.fitting.DoubleGaussian import *
 from ISMgas.GalaxyProperties import *
@@ -187,7 +190,7 @@ class AnalyzeSpectra(GalaxyProperties):
                             )
 
                         font_size=15
-                        print("setting title to " + linename)
+                        # print("setting title to " + linename)
                         plt.title(linename,fontsize=font_size)
                         plt.xlabel('Velocity(km/s)',fontsize=font_size)
                         plt.ylabel('Flux',fontsize=font_size)
@@ -265,7 +268,7 @@ class AnalyzeSpectra(GalaxyProperties):
             chosen_lines,
             wavrange        = [],
             xlim            = [-2000,2000],
-            ylim            = [0,2],
+            ylim               = [0,2],
             start_interp    = -2000,
             end_interp      = 2000,
             delta_interp    = 25,
@@ -387,9 +390,72 @@ class AnalyzeSpectra(GalaxyProperties):
             }
             save_as_pickle(computedSpecVals, fileName = f"{self.objid}-combined.pkls")
             self.plotCombinedLines()
-            
-            
+    
+    @staticmethod
+    def smooth_and_rebin(
+        specDict,
+        wavmin = -1401,
+        wavmax = 1401,
+        smooth_sigma = 3,
+        rebin_shape = (28,)
+    ):
+        '''
+        Example usage: 
+        ## LRIS (R=600) ##
+        - First smooth by 8 pixels (200 km/s) --> FWHM ~500 km/s (R=600)
+        - Then rebin the array which is currently of shape (112,)---> (14,). 
+        - Therefore 14 elements are used to represent the wavelength range -1400, 1400 km/s
 
+        ## R=1000 ##
+        - First smooth by 5 pixels (125 km/s) which is FWHM ~300 km/s (R=1000)
+        - Then rebin the array which is currently of shape (100,)---> (20). 
+        - Therefore 20 elements are used to represent the wavelength range -1250, 1250 km/s
+
+
+        ## KCWI (R=2000) ##
+        - First smooth by 3 pixels (75 km/s) which is FWHM ~ 175 km/s (R=2000)
+        - Then rebin the array which is currently of shape (112,)---> (28,). 
+        - Therefore 28 elements are used to represent the wavelength range -1400, 1400 km/s
+
+        '''  
+        xChosen    = specDict['wav']
+        yChosen    = specDict['flux']
+        yErrChosen = specDict['error']
+        
+        ####### Choose a wavelength range ############
+        wav_min = wavmin #km/s
+        wav_max = wavmax  #km/s
+        mask    = (xChosen>wav_min) & (xChosen<wav_max)
+            
+        ### Smooth the spectra ###    
+        flux_smoothed = gaussian_filter1d(
+            yChosen[mask],
+            sigma=smooth_sigma
+        )
+
+        ### Rebin  ###
+        flux_smoothed_rebinned = bin_ndarray(
+            flux_smoothed, 
+            new_shape=rebin_shape, 
+            operation='mean'
+        )
+
+
+        wave_rebinned = bin_ndarray(
+            xChosen[mask], 
+            new_shape=rebin_shape, 
+            operation='mean'
+        )
+
+        ######## WARNING : This error is only used for chi-square minimization and is not the TRUE error
+        sigma_rebinned  = bin_ndarray(
+            yErrChosen[mask], 
+            new_shape=rebin_shape, 
+            operation='mean'
+        )
+
+        return({'wav':wave_rebinned, 'flux': flux_smoothed_rebinned, 'error': sigma_rebinned})
+      
             
     ##########################
     ### Plotting routines  ###
