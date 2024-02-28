@@ -568,7 +568,6 @@ def runCMD(cmd):
 ################################
 #### kvgc only use functions ####
 ################################
-from cdfutils.cdfutils.coords import matrix_to_rot, cdmatrix_to_rscale   
 from ISMgas.globalVars import *
 from ISMgas.linelist import linelist_highz
 
@@ -738,37 +737,6 @@ def splitDataCube(filename, nchannels):
         
         hduFoo.writeto(filename.split('.fits')[0] + "_" + str(i) +".fits", overwrite=True)
     
-
-def processCDMatrix(fileName):
-    '''
-    returns a dict containing pa and pixel scale given an input fits file
-    uses cdfutils.
-    '''
-    
-    data_hdr = fits.getheader(filename=fileName)
-    print(data_hdr['CD1_1'])
-    print(data_hdr['CD1_2'])
-    print(data_hdr['CD2_1'])
-    print(data_hdr['CD2_2'])
-
-    PA_measured = matrix_to_rot(
-        matrix = np.matrix([
-            [data_hdr['CD1_1'],data_hdr['CD1_2']],
-            [data_hdr['CD2_1'],data_hdr['CD2_2']]
-        ])
-    )
-
-    print("Measured PA using cdfutils: ", PA_measured)
-
-    pixscale_measured = cdmatrix_to_rscale(
-        cdmatrix = np.matrix([
-            [data_hdr['CD1_1'],data_hdr['CD1_2']],
-            [data_hdr['CD2_1'],data_hdr['CD2_2']]
-        ])
-    )
-    print("Pixel scale is :", pixscale_measured)    
-    
-    return({'PA': PA_measured, 'pixscale': pixscale_measured})
 
 def save_to_MARZ(wav, spec, sigma, filename):
     """Saves (wav,spec, sigma) from a spectra in a format that MARZ recognizes.
