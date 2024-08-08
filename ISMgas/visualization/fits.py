@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from astropy.visualization import ZScaleInterval, ImageNormalize, LinearStretch, LogStretch, PowerStretch, SqrtStretch, PercentileInterval
 from regions import Regions
+import matplotlib.pyplot as plt
 
 def regionToMask(filename, data, kwargs={'format':'ds9'}):
     """Generates a mask from a region file.
@@ -16,6 +17,37 @@ def regionToMask(filename, data, kwargs={'format':'ds9'}):
     regions = Regions.read(filename, **kwargs)
     mask = regions[0].to_mask()
     return mask.to_image(data.shape)
+
+
+def mockData2D():
+    """Generates a 2D mock image."""
+    # Parameters
+    size = 500  # Size of the grid
+    radius = 5
+    frequency = 5
+
+    # Create a grid of coordinates
+    x = np.linspace(-radius, radius, size)
+    y = np.linspace(-radius, radius, size)
+    X, Y = np.meshgrid(x, y)
+
+    # Calculate the distance from the center
+    R = np.sqrt(X**2 + Y**2)
+
+    # Create the circular sine wave pattern
+    Z = np.sin(frequency * R)/R
+
+    # Plot using imshow
+    plt.figure(figsize=(8, 8))
+    plt.imshow(Z, extent=(-radius, radius, -radius, radius), origin='lower', cmap='viridis')
+    plt.colorbar(label='Amplitude')
+    plt.title('Mock 2D image ')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.show()
+    
+    return Z
+
 
 class ScaleImage:
     def __init__(self, image:'numpy.array', scale:'str'= 'percentile', scale_kwargs:dict = {'percentile':95}, cmap:str = 'gray'):

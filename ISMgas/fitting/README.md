@@ -40,3 +40,5 @@ results_dg = dg.fitting(double_gaussian = True)
 ## Fit a single gaussian 
 results_sg = dg.fitting(double_gaussian = False)
 ```
+
+Checkout some of the examples posted [here](examples/).

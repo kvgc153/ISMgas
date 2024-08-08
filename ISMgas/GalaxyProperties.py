@@ -50,11 +50,11 @@ class GalaxyProperties:
         saturation,backsub,vb     = kwargs.get('saturation,backsub,vb',['white',False,False])
 
         '''
-
         ## grab fits if needed ##
-        if(kwargs.get('grab')==True):
+        if(grab==True):
+
             r = requests.get(
-                "https://www.legacysurvey.org/viewer/fits-cutout?",
+                "https://www.legacysurvey.org/viewer/cutout.fits?",
                 params = {
                     'ra'          : kwargs.get('ra',self.ra),
                     'dec'         : kwargs.get('dec',self.dec),
