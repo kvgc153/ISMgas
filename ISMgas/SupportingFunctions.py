@@ -85,17 +85,21 @@ def removeCosmicRays(data, sigclip=2, objlim=2, readnoise=4, verbose=True):
         sigclip   = sigclip,
         objlim    = objlim,
         readnoise = readnoise,
-        verbose   = Truverbosee
+        verbose   = verbose
     )    
     
     return(clean_data, mask)
 
-def makeMedianFolder(folder,objid):
+def makeMedianFolder(folder,objid,crRayClean=False):
     "Make median for a bunch of files in a folder"
     filenames = glob.glob(folder+"*.fits")
     data = []
     for i in filenames:
-        data.append(fits.getdata(i))
+        if(crRayClean):
+            dataClean,_ = removeCosmicRays(fits.getdata(i))
+            data.append(dataClean)
+        else:
+            data.append(fits.getdata(i))
         
     data=np.array(data)
     data_median = np.median(data,axis=0)
@@ -108,12 +112,12 @@ def makeMedianFolder(folder,objid):
 ############
 ### Math ###
 ############
-def interpolateData(x, y, xnew):
+def interpolateData(x, y, xnew, **kwargs):
     '''
     Assuming y = f(x), returns f(xnew) using scipy's interpolate method.
     '''
     
-    fInter  = interpolate.interp1d(x, y)
+    fInter  = interpolate.interp1d(x, y,**kwargs)
     return fInter(xnew)
 
 
@@ -568,6 +572,7 @@ def runCMD(cmd):
 ################################
 #### kvgc only use functions ####
 ################################
+# from cdfutils.cdfutils.coords import matrix_to_rot, cdmatrix_to_rscale   
 from ISMgas.globalVars import *
 from ISMgas.linelist import linelist_highz
 
@@ -738,6 +743,37 @@ def splitDataCube(filename, nchannels):
         hduFoo.writeto(filename.split('.fits')[0] + "_" + str(i) +".fits", overwrite=True)
     
 
+def processCDMatrix(fileName):
+    '''
+    returns a dict containing pa and pixel scale given an input fits file
+    uses cdfutils.
+    '''
+    
+    data_hdr = fits.getheader(filename=fileName)
+    print(data_hdr['CD1_1'])
+    print(data_hdr['CD1_2'])
+    print(data_hdr['CD2_1'])
+    print(data_hdr['CD2_2'])
+
+    PA_measured = matrix_to_rot(
+        matrix = np.matrix([
+            [data_hdr['CD1_1'],data_hdr['CD1_2']],
+            [data_hdr['CD2_1'],data_hdr['CD2_2']]
+        ])
+    )
+
+    print("Measured PA using cdfutils: ", PA_measured)
+
+    pixscale_measured = cdmatrix_to_rscale(
+        cdmatrix = np.matrix([
+            [data_hdr['CD1_1'],data_hdr['CD1_2']],
+            [data_hdr['CD2_1'],data_hdr['CD2_2']]
+        ])
+    )
+    print("Pixel scale is :", pixscale_measured)    
+    
+    return({'PA': PA_measured, 'pixscale': pixscale_measured})
+
 def save_to_MARZ(wav, spec, sigma, filename):
     """Saves (wav,spec, sigma) from a spectra in a format that MARZ recognizes.
     UNDER CONSTRUCTION
@@ -762,6 +798,25 @@ def save_to_MARZ(wav, spec, sigma, filename):
     hdu_list = fits.HDUList([hdu, hdu_var])
 
     hdu_list.writeto(f'{filename}.fits', overwrite=True)
+    
+def save_to_QFitsview(wav, spec, sigma, filename):
+    """Saves (wav,spec, sigma) from a spectra in a format that QFitsview recognizes.
+    UNDER CONSTRUCTION
+
+    Args:
+        wav (np.array): Wavelength
+        spec (np.array): Flux
+        sigma (np.array): 1 sigma uncertainity
+        filename (string): Filename
+    """
+
+    hdu  = fits.PrimaryHDU(spec)
+    hdr  = hdu.header
+    hdr['CUNIT1'] = 'ANGSTROM'
+    hdr['CRPIX1'] = 1    
+    hdr['CRVAL1'] = wav[0]
+    hdr['CDELT1'] = np.diff(wav)[0]
+    hdu.writeto(f'{filename}.fits', overwrite=True)
 
 
 def generateHTMLReport(objids):

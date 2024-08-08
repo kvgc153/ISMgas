@@ -1,0 +1,15 @@
+<ColorMaps>
+<ColorMap name="Yellow Orange 5 / Brown 9 / Blue 8" space="RGB" interpolationspace="lab" interpolationtype="linear" creator="CCC-Tool">
+<Point x="0" o="1" r="0.301961" g="0.047059" b="0.090196" cms="1" isMoT="true"/>
+<Point x="0.125" o="1" r="0.5508652687878424" g="0.17189415214873116" b="0.07643127965024721" cms="1" isMoT="true"/>
+<Point x="0.28143040123256136" o="1" r="0.788235294117647" g="0.3350196078431373" b="0.0709411764705882" cms="1" isMoT="true"/>
+<Point x="0.4430522187171216" o="1" r="0.8826484550715326" g="0.5472312538985603" b="0.1315404520482111" cms="1" isMoT="true"/>
+<Point x="0.6079950324513644" o="1" r="0.9529411764705882" g="0.7537764705882353" b="0.32399999999999995" cms="1" isMoT="true"/>
+<Point x="0.8083618061822233" o="1" r="0.9881095757502024" g="0.8803758459010868" b="0.5753410841599857" cms="1" isMoT="true"/>
+<Point x="0.9921235986646685" o="1" r="0.9909509560705329" g="0.9676055265977452" b="0.798428349923575" cms="1" isMoT="true"/>
+<Point x="1" o="1" r="0.9942806603773585" g="0.9667665145169161" b="0.8749669811320755" cms="1" isMoT="true"/>
+<NaN r="0" g="0" b="0"/>
+<Above r="0" g="0" b="0"/>
+<Below r="0" g="0" b="0"/>
+</ColorMap>
+<iframe xmlns="http://www.w3.org/1999/xhtml" class="cleanslate hidden" src="hier1p_files/commandline.html" id="cmdline_iframe" loading="lazy" style="height: 0px !important;"></iframe></ColorMaps>
