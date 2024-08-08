@@ -146,7 +146,7 @@ class GalaxyProperties:
         Adapted from this example from the datalab: https://github.com/astro-datalab/notebooks-latest/blob/master/04_HowTos/SPARCL/How_to_use_SPARCL.ipynb
         '''
         client                    = SparclClient()
-        out                       = ['id', 'specid','ra', 'dec', 'redsstem christie.hift', 'spectype', 'data_release', 'redshift_err']
+        out                       = ['id', 'specid','ra', 'dec', 'redshift', 'spectype', 'data_release', 'redshift_err']
         cons = {
                 'data_release'    : ['BOSS-DR16', 'SDSS-DR16'],
                 'ra'              : [self.ra-search_min,self.ra+search_max],
@@ -155,6 +155,8 @@ class GalaxyProperties:
 
 
         found_I                   = client.find(outfields=out, constraints=cons)
+        # print(found_I.records)
+        # print([f['specid'] for f in found_I.records])
         # print(["%s, %f, %f, %f, %f" % (f['id'],f['ra'],f['dec'],f['redshift'],f['redshift_err']) for f in found_I.records])
 
         # Define the fields to include in the retrieve function
@@ -164,6 +166,7 @@ class GalaxyProperties:
                                                     include           = inc,
                                                     dataset_list    = ['SDSS-DR16','BOSS-DR16']
                                             )
+        print(results_II)
 
         self.plot_SDSS_spec(index = index,results = results_II, ylim = ylim)
 
