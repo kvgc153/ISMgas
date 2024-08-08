@@ -17,7 +17,7 @@ s.plot()
 ```
 Currently supports only 'percentile' but more options will be added shortly.
 
-Example notebook -- [Link](example-visualization.ipynb)
+Example notebook -- [Link](examples/example-visualization.ipynb)
 
 ### Converting ds9 regions to mask
 

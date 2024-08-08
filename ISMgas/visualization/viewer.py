@@ -10,6 +10,8 @@ from scipy.interpolate import splrep,splev
 from astropy.io import ascii
 import sys
 import os
+from matplotlib.widgets import TextBox
+
 
 def onclick(event):
     # when none of the toolbar buttons is activated and the user clicks in the
@@ -83,13 +85,16 @@ def ontype(event):
     plt.draw()
 
 
+
 if __name__ == "__main__":
     # Get the filename of the spectrum from the command line, and plot it
     #filename = sys.argv[1]
     #wave,flux = np.loadtxt(filename).T
+
     zs =1.86523
 
-    t_bright = ascii.read("/home/keerthi/Dropbox/kvgc/ThisCodeWorks-main_OLD/KCWI/CSWA13/masks/mainarc-brighregionsonly")
+    t_bright = ascii.read("/home/keerthi/Dropbox/ThisCodeWorks-main_OLD/KCWI/CSWA13/mainarc-brighregionsonly")
+    
     fitting_profile     = t_bright['col2']
     fitting_wav      = np.arange(3229,3229+len(fitting_profile),1)  
     fitting_wav      = fitting_wav/(1+zs)
@@ -101,4 +106,7 @@ if __name__ == "__main__":
     plt.gcf().canvas.mpl_connect('key_press_event',ontype)
     plt.gcf().canvas.mpl_connect('button_press_event',onclick)
     plt.gcf().canvas.mpl_connect('pick_event',onpick)
+    
+
+
     plt.show() # show the window
