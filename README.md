@@ -9,7 +9,7 @@ git clone https://github.com/kvgc153/ISMgas.git
 cd ISMgas/
 conda create --name ISMgas
 conda activate ISMgas
-conda install python==3.8
+conda install python==3.9
 pip install -e .
 ```
 
