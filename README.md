@@ -24,7 +24,7 @@ This repository is under constant development. Kindly report any issues that you
 
 
 #### Others
-- [Get DECaLS image and plot its SDSS spectra](spectra/examples/SDSS_and_decals.ipynb)
+- [Get DECaLS image and plot its SDSS spectra](ISMgas/spectra/examples/SDSS_and_decals.ipynb)
 
 
 ### Papers using ISMgas 
