@@ -7,10 +7,9 @@ ISMgas is a python module used to analyze absorption line kinematics of Interste
 ```shell
 git clone https://github.com/kvgc153/ISMgas.git
 cd ISMgas/
-conda create --name ISMgas
-conda activate ISMgas
-conda install python==3.9
-pip install -e .
+conda create --name ISMgas 
+conda activate ISMgas 
+sh setupISMgas.sh
 ```
 
 
