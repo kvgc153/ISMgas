@@ -26,7 +26,6 @@ from ISMgas.GalaxyProperties import *
 from ISMgas.linelist import linelist_highz,linelist_SDSS
 from ISMgas.SupportingFunctions import display_image
 
-
 class kcwiAnalysis(GalaxyProperties):
 
     def __init__(self,**kwargs):
@@ -132,20 +131,20 @@ class kcwiAnalysis(GalaxyProperties):
         """
         bfile   = np.sum(self.dataCube[bwave[0]:bwave[1]],0)
         hdu     = fits.PrimaryHDU(data=bfile)
-        hdu.writeto(f"{self.objid}_B.fits",overwrite=True)
+        hdu.writeto(f"{self.objid}_B_humvi.fits",overwrite=True)
 
         gfile   = np.sum(self.dataCube[gwave[0]:gwave[1]],0)
         hdu     = fits.PrimaryHDU(data=gfile)
-        hdu.writeto(f"{self.objid}_G.fits",overwrite=True)
+        hdu.writeto(f"{self.objid}_G_humvi.fits",overwrite=True)
 
         rfile   = np.sum(self.dataCube[rwave[0]:rwave[1]],0)
         hdu     = fits.PrimaryHDU(data=rfile)
-        hdu.writeto(f"{self.objid}_R.fits",overwrite=True)
+        hdu.writeto(f"{self.objid}_R_humvi.fits",overwrite=True)
         
         humvi.compose(
-            f"{self.objid}_R.fits",
-            f"{self.objid}_G.fits",
-            f"{self.objid}_B.fits",
+            f"{self.objid}_R_humvi.fits",
+            f"{self.objid}_G_humvi.fits",
+            f"{self.objid}_B_humvi.fits",
             scales     = (self.rscale, self.gscale, self.bscale),
             Q          = self.Q,
             alpha      = self.alpha,
