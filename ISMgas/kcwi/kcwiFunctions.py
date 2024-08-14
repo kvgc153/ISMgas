@@ -70,6 +70,27 @@ class kcwiAnalysis(GalaxyProperties):
         self.saturation, self.backsub, self.vb    = kwargs.get('saturation_backsub_vb',['white',False,False])
 
 
+    def spectraUnderMask(self, method='sum'):
+        """
+        Computes the spectra under the mask. The method can be either sum or mean.
+
+        Args:
+            method (str, optional): Method to collapse mask spectra. Defaults to 'sum'.
+        """
+        y,x = np.where(self.maskData >0)
+        dataStack = []
+        for i in range(len(y)):
+            dataStack.append(self.dataCube[:,y[i],x[i]])
+        
+        dataStack = np.asarray(dataStack)
+        if(method=='sum'):
+            dataSum = np.nansum(dataStack,axis=0)
+            return(dataSum)
+        
+        elif(method=='mean'):
+            dataMean = np.nanmean(dataStack,axis=0)        
+            return(dataMean)
+    
     def whiteLightImage(self,**kwargs):
         plt.imshow(
             self.dataCubeMean,

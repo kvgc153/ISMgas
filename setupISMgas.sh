@@ -10,4 +10,7 @@ pip install requests  && \
 pip install sparclclient   && \
 pip install pandas  && \
 pip install astroscrappy  && \
+pip install lmfit &&\
+pip install symfit &&\
+pip install regions &&\
 echo "END: ISMgas environment setup complete" 
