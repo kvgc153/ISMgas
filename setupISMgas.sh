@@ -13,4 +13,5 @@ pip install astroscrappy  && \
 pip install lmfit &&\
 pip install symfit &&\
 pip install regions &&\
+pip install beautifyPlot &&\
 echo "END: ISMgas environment setup complete" 
