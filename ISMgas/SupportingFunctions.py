@@ -377,28 +377,6 @@ def display_image(filename:str):
 
 def beautifyPlot(kwargs):
     '''
-    Run at end of matplotlib plotting routine. Thanks to Patrick Wells (UCD) for suggesting a clean way to implement this 
-    Example:
-    ```
-    x   = np.arange(0,100,1)
-    y   = x**2
-
-    plt.plot(x,y, label= 'y=f(x)')
-
-    beautifyPlot({
-        'title'         : {'label': '$x^2$ v/s x'},
-        'xlim'          : {'left': 0, 'right':100},
-        'ylim'          : {'bottom': 0, 'top':10000},
-        'legend'        : {'bbox_to_anchor' : (1, 1), 'fontsize': 15},
-        'tightlayout'   : {}
-
-    })
-
-    ```
-    
-    '''
-def beautifyPlot(kwargs):
-    '''
     Run at end of matplotlib plotting routine.
     '''
     pltFunctions = {
