@@ -5,16 +5,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os 
-from astropy.io import fits
+from astropy.io import fits,ascii
 from astropy.table import Table
 from astropy.visualization import (ZScaleInterval, ImageNormalize,SqrtStretch, SquaredStretch)
 from matplotlib.widgets import Slider, Button, RadioButtons
-import mplcursors
+# import mplcursors
+
+from scipy.signal import correlate
+from scipy.optimize import curve_fit
 
 ## Custom packages
 from ISMgas.linelist import linelist_NIRES
 from ISMgas.globalVars import *
-
+from ISMgas.SupportingFunctions import interpolateData
+import glob 
 
 #################
 ## Inititalize ##
@@ -22,7 +26,7 @@ from ISMgas.globalVars import *
 ## slit : Gives the min and max coordinates of the slit in a given order. ##
 #################
 
-wav_sol_folder    = '../calib_files/'
+wav_sol_folder    = 'calib_files/'
 wav_sol_files     = [
                  'skylines-sp3.csv',
                  'skylines-sp4.csv',
@@ -89,23 +93,27 @@ wavelength_scale_corrected    = wavelength_scale_corrected.astype(int)
 
 class NIRESredux:
     def __init__(self,**kwargs):
-        self.baseFolder     = kwargs.get('baseFolder')
+        self.baseFolder     = kwargs.get('baseFolder',"") ## Assume current folder 
         self.AFrames        = kwargs.get('A')
         self.AFrames        = [self.baseFolder+i for i in self.AFrames]
 
         self.BFrames        = kwargs.get('B')
         self.BFrames        = [self.baseFolder+i for i in self.BFrames]
        
-        self.slitAFrames    = kwargs.get('slitA')
+        self.slitAFrames    = kwargs.get('slitA',[])
         self.slitAFrames    = [self.baseFolder+i for i in self.slitAFrames]
 
-        self.slitBFrames    = kwargs.get('slitB')
+        self.slitBFrames    = kwargs.get('slitB',[])
         self.slitBFrames    = [self.baseFolder+i for i in self.slitBFrames]
 
         self.objid          = kwargs.get('objid')
         self.reducedABFile  = ''
+        
+        self.wavOffset      = 0
 
-        self.slitPosition2D()
+        if(len(self.slitAFrames)>0):
+            self.slitPosition2D()
+            
         self.redux2D()
         
     def slitPosition2D(self):
@@ -126,7 +134,7 @@ class NIRESredux:
         os.system("ds9 %s"%(self.objid+"_slitPosition.fits &"))
 
         
-    def redux2D(self):
+    def redux2D(self, mode='autox',bk='',sp=''):
         '''
         Run nsx in autox mode
         '''
@@ -146,18 +154,36 @@ class NIRESredux:
         file1   = self.objid+"_A.fits"
         file2   = self.objid+"_B.fits"
         
+        self.data1Corrected = fits.getdata(self.objid+"_A-corrected.fits")
+        self.data2Corrected = fits.getdata(self.objid+"_B-corrected.fits")
+        
         ## Store A-B of the mean files 
         fits.writeto(self.objid+"A_B.fits",A_data_mean-B_data_mean,overwrite=True)
 
-        ## Shell commands to reduce the data
-        command   = NIRES_nsxPath + file1 + ' ' +  file2 + ' -autox'
-        os.system(command)
-        # command   = 'rm *.tbl'
-        # os.system(command)
-        # command   = 'rm *.log'
-        # os.system(command)
-        command   = 'rm *.draw'
-        os.system(command)
+
+        if(mode == 'autox'):
+            ## Shell commands to reduce the data
+            command   = NIRES_nsxPath + file1 + ' ' +  file2 + ' -autox'
+            os.system(command)
+            
+        if(mode=='manual'):
+            command   = NIRES_nsxPath + file1 + ' ' +  file2 + ' bk=' + bk + ' sp=' + sp
+            os.system(command)
+            
+            files = glob.glob(self.objid+"*.csv")
+            for file in sorted(files):
+                plt.figure(dpi=200, figsize=(15,7))
+                data = ascii.read(file,delimiter=',')
+                plt.plot(data['wave'], data['object'],color='black')
+                # plt.plot(data['col'], data['backgnd'],color='purple')
+                # plt.plot(data['col'], data['sky'],color='orange')
+                
+                plt.ylim([np.percentile(data['object'],1),np.percentile(data['object'],99)])    
+
+                plt.show()
+
+
+
         
         self.reducedABFile = self.objid+"_A-"+self.objid[-2:]+"_B-corrected.fits"
         print(self.reducedABFile)
@@ -165,19 +191,126 @@ class NIRESredux:
         ## Extract each order and store them 
         dataReduced = fits.getdata(self.reducedABFile)
         
+        ## Make a datacube with the corrected and reduced data
+        fits.writeto(self.objid+"_datacube.fits",np.array([self.data1Corrected, self.data2Corrected, dataReduced ]),overwrite=True)
+
+        
         ## bad code ---
         for i in  NIRES_calib_configs.keys():
             slitMin, slitMax    = NIRES_calib_configs[i]['slit']
             dataSliced          = dataReduced[slitMin: slitMax, :]
             fits.writeto(i+".fits", dataSliced, overwrite=True)
                 
-    def plotReducedSpectra(self,guessZ,imshowParams={'vmin':-7, 'vmax':3.5}):
-        ## Reduced spectra
-        data    = fits.getdata(self.reducedABFile)
-        norm    = ImageNormalize(data, interval=ZScaleInterval())
+                
+        
+    
+    def findWavelengthOffset(
+            self, 
+            order = 'sp4', 
+            delta = 40, 
+            Amin = 630, 
+            Amax = 675, 
+            offsetWav = 0,
+            scalesky = 10,
+            figsize= (20,7),
+            ylim = [None,None]
+        ):
+        
+        ## Plotting the region to be  extracted --  160 pixels is roughly 18''
+        offset_vals   = NIRES_calib_configs[order]['offsetVals']
+        
+        data          = self.data1Corrected
 
-        plt.figure(figsize=(10,5))
-        plt.imshow(data,origin='lower',cmap='gray',**imshowParams)
+        plt.figure(figsize=(10,7))
+        for i in offset_vals:    
+            plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
+            plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4)
+            
+        plt.tight_layout()
+        
+        wavelengthOffset = []
+        count = 1 
+        plt.figure(figsize=(15,5))
+        for i in offset_vals:          
+            
+            if(count<5):
+                data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:], axis=0)
+                
+                t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
+                wavelength    = t['wavelength']/10000.
+                col           = t['col']
+                sky_flux      = t['sky']
+                
+                
+                ## Interpolate the data to the same wavelength scale
+                deltaWav_new = 0.00001
+                wavelength_new = np.arange(wavelength[-1],wavelength[0],deltaWav_new)
+                
+                data_f1 = interpolateData(wavelength, data_f1, wavelength_new)
+                sky_flux = interpolateData(wavelength, sky_flux, wavelength_new)
+                
+                
+                ## Cross correlate the spectra with the template
+                spectra = data_f1
+                template = sky_flux*scalesky
+                
+                    # Normalize the data
+                spectra = (spectra - np.min(spectra)) / (np.max(spectra) - np.min(spectra))
+                template = (template - np.min(template)) / (np.max(template) - np.min(template))
+                
+    
+                correlation = correlate(spectra, template, mode='full')
+                shift_index = np.argmax(correlation) - (len(template) - 1)
+                
+                plt.subplot(1,4,count)
+                plt.plot(correlation)
+                
+                print("Shift index: ", shift_index)
+                print("Shift in wavelength: ", shift_index*deltaWav_new)
+                
+                wavelengthOffset.append(shift_index*deltaWav_new)
+                  
+            count+=1
+            
+        plt.suptitle("Cross correlation of the spectra with the sky template")
+        plt.tight_layout()
+        print("Wavelength offset: ", np.median(wavelengthOffset), '+-', np.std(wavelengthOffset))
+        self.wavOffset = np.median(wavelengthOffset)
+        
+        ## Diagonstic plot
+        count = 1 
+
+        for i in offset_vals:     
+            if(count<5):     
+                data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:], axis=0)
+                
+                t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
+                wavelength    = t['wavelength']/10000. 
+                col           = t['col']
+                sky_flux      = t['sky']
+                
+                
+                plt.figure(figsize=figsize)
+                plt.plot(wavelength - self.wavOffset, data_f1, color='black')
+                plt.plot(wavelength, sky_flux*scalesky , color='orange')
+                plt.xlabel("Wavelength (in microns)", fontsize = 18)
+                plt.ylabel("Flux (arbitrary units)", fontsize = 18)
+                plt.title(f"Order {count+2}", fontsize = 18)
+                plt.ylim(ylim)
+                count+=1
+                
+            
+        
+        return np.median(wavelengthOffset), np.std(wavelengthOffset)
+            
+    
+    
+    
+    
+    
+    
+    
+    def plotReducedSpectra(self,guessZ):
         self.plot_emission_lines(guessZ)
         os.system("ds9 %s %s -zoom to fit -lock frame image -lock scale -scale zscale -region %s &"%(self.reducedABFile, self.objid+"A_B.fits",self.objid+"_lines.reg"))
               
@@ -195,11 +328,11 @@ physical
             x,y                   = np.where(wavelength_scale == int(wav))
            
             try:
-                plt.scatter(y[0],x[0], marker = 'o',s=20,color = 'pink')
+                # plt.scatter(y[0],x[0], marker = 'o',s=20,color = 'pink')
                 f.write("circle %d %d 40 # color=red text={%s} \n"%(y[0],x[0],element))
                 print(y[0],x[0],element,wav)
                 
-                plt.text(y[0],x[0]+50,element,fontsize = 20,color = 'pink')
+                # plt.text(y[0],x[0]+50,element,fontsize = 20,color = 'pink')
             except:
                 pass
             
@@ -222,6 +355,11 @@ physical
         ## Plotting the region to be  extracted --  160 pixels is roughly 18''
         Bmin          = Amin + delta
         Bmax          = Amax + delta
+        slit_vals     = NIRES_calib_configs[order]['slit']
+        
+        print("Offsets from base of slit for A : ", Amin - slit_vals[0], Amax - slit_vals[0])
+        print("Offsets from base of slit for B : ", Bmin - slit_vals[0], Bmax - slit_vals[0])
+
         offset_vals   = NIRES_calib_configs[order]['offsetVals']
         
         data          = fits.getdata(self.reducedABFile)
@@ -231,14 +369,16 @@ physical
             plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
             plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4)
             plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.4)
+            
         plt.tight_layout()
-        plt.savefig(f"{self.objid}_orders.png",dpi=300)
-        plt.close()
+        # plt.savefig(f"{self.objid}_orders.png",dpi=300)
+        # plt.close()
         
         ## Make 2D masks ##
+        plt.figure()
         for count,fooKeys in enumerate(NIRES_calib_configs.keys()):
             t   = Table.read(wav_sol_folder+ wav_sol_files[count],format='ascii.csv')
-            wavelength    = t['wavelength']
+            wavelength    = t['wavelength'] - self.wavOffset ## Apply offset 
             col           = t['col']          
             
             if(count < 4): ## Need to rewrite this to account for the last index error
@@ -284,13 +424,14 @@ physical
                     plt.savefig(fooKeys + "-masked.png", dpi = 150)                   
                         
         count = 1 
+        plt.close()
         for i in offset_vals:
             plt.figure(figsize = specPlotParams['figsize'])
 
             data_f1       = sum(data[Amin-i*offset:Amax-i*offset,:]) - sum(data[Bmin-i*offset:Bmax-i*offset,:])
             
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
-            wavelength    = t['wavelength']
+            wavelength    = t['wavelength'] - self.wavOffset ## Apply offset 
             col           = t['col']
             sky_flux      = t['sky']
             
@@ -323,22 +464,26 @@ physical
             wavelength_masked   = wavelength[skymask]
             skyflux_masked      = sky_flux[skymask]
             
-            for foox,fooy in zip(wavelength_masked, skyflux_masked):
-                plt.axvline([foox/10000.], color='gray', linewidth= 5, alpha =0.04*(fooy))
+            # for foox,fooy in zip(wavelength_masked, skyflux_masked):
+            #     plt.axvline([foox/10000.], color='gray', linewidth= 5, alpha =0.04*(fooy))
             
 
             trans = plt.gca().get_xaxis_transform()             
             for i in linelist_NIRES:
-                plt.axvline([i[1]*(1+z)/10000.],alpha=0.6)
+                
+                ## Plot only if the line is within the wavelength range
+                if(i[1]*(1+z)/10000. > wav_minmax[count-1][1]/10000. and i[1]*(1+z)/10000. < wav_minmax[count-1][0]/10000.):
+                
+                    plt.axvline([i[1]*(1+z)/10000.],alpha=0.6)
 
-                plt.gca().annotate(
-                        i[0],
-                        xy          = (i[1]*(1+z)/10000., 1.05),
-                        xycoords    = trans,
-                        fontsize    = 20,
-                        rotation    = 0,
-                        color       = 'b'
-                )     
+                    plt.gca().annotate(
+                            i[0],
+                            xy          = (i[1]*(1+z)/10000., 1.05),
+                            xycoords    = trans,
+                            fontsize    = 20,
+                            rotation    = 0,
+                            color       = 'b'
+                    )     
 
             ## xlim 
             if(specPlotParams['xlim']  == 'default'):
@@ -363,38 +508,4 @@ physical
             count+=1
         
 
-
-    def plotInteractiveView(self):
-        '''
-        This is mostly to check the wavemap values. Could be used for redshift estimation but not recommended
-        '''
-
-        data    = fits.getdata(self.objid+"A_B.fits")[0,:,:]
-
-        fig     = plt.figure(figsize=(10,5))
-        ax      = fig.add_subplot(111)
-        fig.subplots_adjust(left = 0.25, bottom=0.25)
-        min0    = 0
-        max0    = 25000
-        im1     = ax.imshow(data,vmin=-10,vmax=10.94,cmap='gray',origin='lower')
-        wv      = ax.imshow(fits.getdata(wavemap_file),origin='lower',alpha= 0)
-
-        axmin   = fig.add_axes([0.25, 0.1, 0.65, 0.03])
-        axmax   = fig.add_axes([0.25, 0.15, 0.65, 0.03])
-
-        smin    = Slider(axmin, 'Min', -20, 20, valinit=-10)
-        smax    = Slider(axmax, 'Max', -20, 20, valinit=10.94)
-
-        def update(val)             : 
-            im1.set_clim([smin.val,smax.val])
-            fig.canvas.draw()
-        smin.on_changed(update)
-        smax.on_changed(update)
-
-
-        mplcursors.cursor(wv,multiple=True)
-        plt.show()
-
-
-        
         

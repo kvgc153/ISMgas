@@ -68,7 +68,7 @@ NIRES_Dec2022Folder = "../NIRES_December2022_files/"
 NIRES_Jan2022Folder = "../NIRES_Jan2022/"
 NIRES_Mar2021Folder = "../NIRES_Mar31_2021/"
 NIRES_Mar2020Folder = "../NIRES_March2020/"
-NIRES_wavemap_file = '../calib_files/NIRES_wavemap.fits'
-NIRES_wavemap_file_corrected = '../calib_files/NIRES_wavemap-corrected.fits'
-NIRES_nsxPath = '/home/keerthi/work/nsx_newversion/nsx '
+NIRES_wavemap_file = 'calib_files/NIRES_wavemap.fits'
+NIRES_wavemap_file_corrected = 'calib_files/NIRES_wavemap-corrected.fits'
+NIRES_nsxPath = '/home/keerthi/work/nsx/nsx '
 
