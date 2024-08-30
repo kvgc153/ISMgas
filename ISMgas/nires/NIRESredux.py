@@ -15,9 +15,10 @@ from scipy.signal import correlate
 from scipy.optimize import curve_fit
 
 ## Custom packages
-from ISMgas.linelist import linelist_NIRES
+from ISMgas.linelist import linelist_NIRES, linelist_SDSS
 from ISMgas.globalVars import *
-from ISMgas.SupportingFunctions import interpolateData
+from ISMgas.SupportingFunctions import interpolateData, createSubplotGrid
+from ISMgas.visualization.fits import ScaleImage
 import glob 
 
 #################
@@ -110,6 +111,9 @@ class NIRESredux:
         self.reducedABFile  = ''
         
         self.wavOffset      = 0
+        self.dataProduct    = {}
+        
+
 
         if(len(self.slitAFrames)>0):
             self.slitPosition2D()
@@ -154,11 +158,6 @@ class NIRESredux:
         file1   = self.objid+"_A.fits"
         file2   = self.objid+"_B.fits"
         
-        self.data1Corrected = fits.getdata(self.objid+"_A-corrected.fits")
-        self.data2Corrected = fits.getdata(self.objid+"_B-corrected.fits")
-        
-        ## Store A-B of the mean files 
-        fits.writeto(self.objid+"A_B.fits",A_data_mean-B_data_mean,overwrite=True)
 
 
         if(mode == 'autox'):
@@ -182,6 +181,11 @@ class NIRESredux:
 
                 plt.show()
 
+        self.data1Corrected = fits.getdata(self.objid+"_A-corrected.fits")
+        self.data2Corrected = fits.getdata(self.objid+"_B-corrected.fits")
+        
+        ## Store A-B of the mean files 
+        fits.writeto(self.objid+"A_B.fits",A_data_mean-B_data_mean,overwrite=True)
 
 
         
@@ -276,6 +280,7 @@ class NIRESredux:
         plt.tight_layout()
         print("Wavelength offset: ", np.median(wavelengthOffset), '+-', np.std(wavelengthOffset))
         self.wavOffset = np.median(wavelengthOffset)
+        self.wavOffsetStd = np.std(wavelengthOffset)
         
         ## Diagonstic plot
         count = 1 
@@ -344,15 +349,10 @@ physical
             delta = 40, 
             Amin = 630, 
             Amax = 655, 
-            z = 2, 
-            specPlotParams = {
-                'figsize' : (12,5),
-                'xlim'    : 'default',
-                'ylim'    : 'default',
-            }
+            scaleLimits = [20,85],
+            z = 2
         ):
         
-        ## Plotting the region to be  extracted --  160 pixels is roughly 18''
         Bmin          = Amin + delta
         Bmax          = Amax + delta
         slit_vals     = NIRES_calib_configs[order]['slit']
@@ -363,7 +363,9 @@ physical
         offset_vals   = NIRES_calib_configs[order]['offsetVals']
         
         data          = fits.getdata(self.reducedABFile)
-
+        
+        
+        ## Show user which range is being extracted ##
         plt.figure(figsize=(10,7))
         for i in offset_vals:    
             plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
@@ -371,74 +373,68 @@ physical
             plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.4)
             
         plt.tight_layout()
-        # plt.savefig(f"{self.objid}_orders.png",dpi=300)
-        # plt.close()
+        plt.show()
+        ##############################################
         
-        ## Make 2D masks ##
-        plt.figure()
-        for count,fooKeys in enumerate(NIRES_calib_configs.keys()):
-            t   = Table.read(wav_sol_folder+ wav_sol_files[count],format='ascii.csv')
-            wavelength    = t['wavelength'] - self.wavOffset ## Apply offset 
-            col           = t['col']          
-            
-            if(count < 4): ## Need to rewrite this to account for the last index error
-                ## xlim 
-                if(specPlotParams['xlim']  == 'default'):
-                    mask1 = wavelength > wav_minmax[count][1]
-                    mask2 = wavelength < wav_minmax[count][0]
-                    mask  = mask1 | mask2
-                    
-                    fooData = fits.getdata(fooKeys + ".fits")
-                    fooDataShape = np.shape(fooData)
-                    newData = []
-                    for i in range(fooDataShape[0]):
-                        newData.append(fooData[i,:][mask])
-                    fits.writeto(fooKeys + "-masked.fits", np.fliplr((np.array(newData))), overwrite=True)
-                    
-                    fooData1    = fits.getdata(fooKeys + "-masked.fits")
-                    foorNorm1   = ImageNormalize(fooData1, interval=ZScaleInterval())
-                    plt.imshow(fooData1,origin='lower',cmap='gray', norm=foorNorm1)
-                    plt.axis('off')
-                    plt.tight_layout()
-                    plt.savefig(fooKeys + "-masked.png", dpi = 150)
-                    
-                    
-                else: 
-                    mask1 = wavelength > specPlotParams['xlim'][count][0]*10000
-                    mask2 = wavelength < specPlotParams['xlim'][count][1]*10000
-                    mask  = mask1 & mask2
-                    
-                    fooData = fits.getdata(fooKeys + ".fits")
-                    fooDataShape = np.shape(fooData)
-                    newData = []
-                    for i in range(fooDataShape[0]):
-                        newData.append(fooData[i,:][mask])
-                    fits.writeto(fooKeys + "-masked.fits", np.fliplr((np.array(newData))), overwrite=True)
- 
- 
-                    fooData1    = fits.getdata(fooKeys + "-masked.fits")
-                    foorNorm1   = ImageNormalize(fooData1, interval=ZScaleInterval())
-                    plt.imshow(fooData1,origin='lower',cmap='gray', norm=foorNorm1)
-                    plt.axis('off')
-                    plt.tight_layout()
-                    plt.savefig(fooKeys + "-masked.png", dpi = 150)                   
-                        
-        count = 1 
-        plt.close()
-        for i in offset_vals:
-            plt.figure(figsize = specPlotParams['figsize'])
+        ## Make final dataproduct 
+        dataProduct    = {
+            'z' : z,
+            'objid': self.objid,
+            'A': self.AFrames,
+            'B': self.BFrames,
+            'slitA': self.slitAFrames,
+            'slitB': self.slitBFrames,
+            'reducedABFile': self.reducedABFile,
+            'wavOffset': self.wavOffset,
+            'wavOffsetStd': self.wavOffsetStd,
+            'sp3':{
+                'lambda' : [],
+                'flux'   : []
+            },
+            'sp4':{
+                'lambda' : [],
+                'flux'   : []
+            },
+            'sp5':{
+                'lambda' : [],
+                'flux'   : []
+            },
+            'sp6':{
+                'lambda' : [],
+                'flux'   : []
+            },
+            'sp7':{
+                'lambda' : [],
+                'flux'   : []
+            },
+        }
 
-            data_f1       = sum(data[Amin-i*offset:Amax-i*offset,:]) - sum(data[Bmin-i*offset:Bmax-i*offset,:])
+        
+        
+        
+        
+        
+        ##############################################
+             
+        count = 1 
+        for i in offset_vals:
+            plt.figure(figsize = (20,8), dpi=100)
+            
+            plt.subplot(2,1,1)
+
+            data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:],axis=0) - np.sum(data[Bmin-i*offset:Bmax-i*offset,:],axis=0)
             
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
-            wavelength    = t['wavelength'] - self.wavOffset ## Apply offset 
+            wavelength    = t['wavelength']/10000. ## microns
+            wavelength    = wavelength  - self.wavOffset ## Correct for the offset
+            
             col           = t['col']
             sky_flux      = t['sky']
-            
-            
-            if(count==5):
+                        
+            if(count==5): ## Order 7 has 1024 pixels and is smaller
+                
                 plt.plot(
-                    wavelength/10000., 
+                    wavelength, 
                     data_f1[:1024],
                     color   = 'black',
                     label   = 'spectra'
@@ -446,66 +442,74 @@ physical
                 
             else :
                 plt.plot(
-                    wavelength/10000., 
+                    wavelength, 
                     data_f1,
                     color   = 'black',
                     label   = 'spectra'
                     )
                 
             plt.plot(
-                    wavelength/10000.,
+                    wavelength,
                     sky_flux*10-100,
                     linewidth   = 2,
                     color       = 'darkorange',
                     label       = 'scaled sky'
             )
             
-            skymask             = np.array(sky_flux) > 0.5
-            wavelength_masked   = wavelength[skymask]
-            skyflux_masked      = sky_flux[skymask]
-            
-            # for foox,fooy in zip(wavelength_masked, skyflux_masked):
-            #     plt.axvline([foox/10000.], color='gray', linewidth= 5, alpha =0.04*(fooy))
-            
 
             trans = plt.gca().get_xaxis_transform()             
-            for i in linelist_NIRES:
+            for i in linelist_SDSS.keys():
+                line = linelist_SDSS[i]['lambda']
                 
                 ## Plot only if the line is within the wavelength range
-                if(i[1]*(1+z)/10000. > wav_minmax[count-1][1]/10000. and i[1]*(1+z)/10000. < wav_minmax[count-1][0]/10000.):
+                if(line*(1+z)/10000. > wav_minmax[count-1][1]/10000. and line*(1+z)/10000. < wav_minmax[count-1][0]/10000.):
                 
-                    plt.axvline([i[1]*(1+z)/10000.],alpha=0.6)
+                    plt.axvline([line*(1+z)/10000.],alpha=0.6)
 
                     plt.gca().annotate(
-                            i[0],
-                            xy          = (i[1]*(1+z)/10000., 1.05),
+                            linelist_SDSS[i]['pltLabel'],
+                            xy          = (line*(1+z)/10000., 1.05),
                             xycoords    = trans,
-                            fontsize    = 20,
-                            rotation    = 0,
+                            fontsize    = 10,
+                            rotation    = 90,
                             color       = 'b'
                     )     
 
-            ## xlim 
-            if(specPlotParams['xlim']  == 'default'):
-                plt.xlim([wav_minmax[count-1][1]/10000.,wav_minmax[count-1][0]/10000.])
-            else: 
-                plt.xlim(specPlotParams['xlim'][count-1])
 
-            ## ylim 
-            if(specPlotParams['ylim']  == 'default'):
-                plt.ylim([-200,None])
-            else: 
-                plt.ylim(specPlotParams['ylim'][count-1])
 
             plt.xlabel("Observed Wavelength (in microns)", fontsize = 18)
             plt.ylabel("Flux (arbitrary units)", fontsize = 18 )
+            plt.title(f"Objid:{self.objid} z={z} Order {count+2}\n\n", fontsize = 18)
             plt.xticks(fontsize= 15)
             plt.yticks(fontsize= 15)
             plt.legend(fontsize = 15)
+            plt.xlim([wavelength[-1],wavelength[0]])
+            plt.ylim([-150,None])
             plt.tight_layout()
 
-            plt.savefig(f"{self.objid}-{count-1}.png", dpi=100)
-            count+=1
+          
+            
+            
+            ### Lets also show the relevant NIRES data
         
+            plt.subplot(2,1,2)
+            slitCoords   = NIRES_calib_configs['sp'+str(count+2)]['slit']
+            ## Extract the data from the slit
+            dataSlit     = data[slitCoords[0]:slitCoords[1],:]
+            vmin = np.percentile(dataSlit,scaleLimits[0])
+            vmax = np.percentile(dataSlit,scaleLimits[1])
+            dataSlit = np.fliplr(dataSlit) ## Flip the data to match the orientation of the spectra
+            plt.imshow(
+                dataSlit,
+                origin='lower',
+                cmap='gray',
+                vmin = vmin,
+                vmax = vmax,
+            )
+            plt.axis('off')
 
-        
+            plt.tight_layout()
+            count+=1
+            
+            
+            plt.savefig(f"{self.objid}-{count-1}.png", dpi=100)
