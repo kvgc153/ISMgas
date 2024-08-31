@@ -552,4 +552,9 @@ physical
                 t['flux']   = dataProduct[i]['flux']
                 t['sky']    = dataProduct[i]['sky']
                 ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
-            
+    
+    
+    def clean(self):
+        cmd = "rm %s*"%(self.objid)        
+        os.system(cmd)
+        
