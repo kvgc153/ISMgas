@@ -17,7 +17,7 @@ from scipy.optimize import curve_fit
 ## Custom packages
 from ISMgas.linelist import linelist_NIRES, linelist_SDSS
 from ISMgas.globalVars import *
-from ISMgas.SupportingFunctions import interpolateData, createSubplotGrid
+from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle
 from ISMgas.visualization.fits import ScaleImage
 import glob 
 
@@ -132,6 +132,15 @@ class NIRESredux:
         A_data_mean   = np.mean(A_data,axis=0)
         B_data        = np.array(B_data)
         B_data_mean   = np.mean(B_data,axis=0)
+
+        ## Show user the slit position
+        
+        plt.figure(figsize=(10,10))
+        dataSlit = A_data_mean[0]-B_data_mean[0]
+        
+        plt.imshow(dataSlit,origin='lower',cmap='gray', vmin = np.percentile(dataSlit,10), vmax = np.percentile(dataSlit,90))
+        plt.tight_layout()
+        plt.savefig(self.objid+"_slitPosition.png",dpi=150)
 
         ## Store A-B of the mean files 
         fits.writeto(self.objid+"_slitPosition.fits",A_data_mean-B_data_mean,overwrite=True)
@@ -350,7 +359,8 @@ physical
             Amin = 630, 
             Amax = 655, 
             scaleLimits = [20,85],
-            z = 2
+            z = 2,
+            scaleAlpha = 1
         ):
         
         Bmin          = Amin + delta
@@ -369,8 +379,8 @@ physical
         plt.figure(figsize=(10,7))
         for i in offset_vals:    
             plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
-            plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4)
-            plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.4)
+            plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4*scaleAlpha)
+            plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.4*scaleAlpha)
             
         plt.tight_layout()
         plt.show()
@@ -389,23 +399,28 @@ physical
             'wavOffsetStd': self.wavOffsetStd,
             'sp3':{
                 'lambda' : [],
-                'flux'   : []
+                'flux'   : [],
+                'sky'    : []
             },
             'sp4':{
                 'lambda' : [],
-                'flux'   : []
+                'flux'   : [],
+                'sky'    : []
             },
             'sp5':{
                 'lambda' : [],
-                'flux'   : []
+                'flux'   : [],
+                'sky'    : []
             },
             'sp6':{
                 'lambda' : [],
-                'flux'   : []
+                'flux'   : [],
+                'sky'    : []
             },
             'sp7':{
                 'lambda' : [],
-                'flux'   : []
+                'flux'   : [],
+                'sky'    : []
             },
         }
 
@@ -432,6 +447,10 @@ physical
             sky_flux      = t['sky']
                         
             if(count==5): ## Order 7 has 1024 pixels and is smaller
+                dataProduct['sp'+ str(count+2)]['lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['flux'] = data_f1[:1024]
+                dataProduct['sp'+ str(count+2)]['sky'] = sky_flux.data
+
                 
                 plt.plot(
                     wavelength, 
@@ -441,6 +460,10 @@ physical
                     )
                 
             else :
+                dataProduct['sp'+ str(count+2)]['lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['flux'] = data_f1
+                dataProduct['sp'+ str(count+2)]['sky'] = sky_flux.data
+
                 plt.plot(
                     wavelength, 
                     data_f1,
@@ -484,7 +507,7 @@ physical
             plt.yticks(fontsize= 15)
             plt.legend(fontsize = 15)
             plt.xlim([wavelength[-1],wavelength[0]])
-            plt.ylim([-150,None])
+            plt.ylim([-150,np.percentile(data_f1,99.99)])
             plt.tight_layout()
 
           
@@ -513,3 +536,20 @@ physical
             
             
             plt.savefig(f"{self.objid}-{count-1}.png", dpi=100)
+            
+        self.dataProduct = dataProduct
+        
+        ## Save the dataProduct
+        # print("Final dataproduct: ", dataProduct)
+        save_as_pickle(dataProduct,self.objid+"_dataProduct.pkl")
+        
+            
+        ## Store the spectra as csv file for easy access 
+        for i in dataProduct.keys():
+            if(i in ['sp3','sp4','sp5','sp6','sp7']):
+                t = Table()
+                t['lambda'] = dataProduct[i]['lambda']
+                t['flux']   = dataProduct[i]['flux']
+                t['sky']    = dataProduct[i]['sky']
+                ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
+            

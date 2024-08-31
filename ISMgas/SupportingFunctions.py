@@ -374,8 +374,8 @@ def getNestedArrayValue(db, keys):
 def image_array(filename:str):
     return(mpimg.imread(filename))
 
-def display_image(filename:str):
-    return(plt.imshow(mpimg.imread(filename)))
+def display_image(filename:str, origin='lower'):
+    return(plt.imshow(mpimg.imread(filename), origin=origin))
 
 ###########################
 ########## Plots ###############
