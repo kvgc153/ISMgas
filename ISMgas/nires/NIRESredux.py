@@ -92,6 +92,38 @@ wavelength_scale_corrected    = fits.getdata(NIRES_wavemap_file_corrected)
 wavelength_scale_corrected    = wavelength_scale_corrected.astype(int)
 
 
+
+def initNIRES(filenames):
+    """Returns a dict with files to reduce.
+
+    Args:
+        filenames (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    filesToReduce = {}
+    for i in filenames:
+        try:
+            header = fits.getheader(i)
+            # print(i.split('/')[-1].split('_')[-1],header['OBJECT']
+
+            dataExisting = filesToReduce.get(header['OBJECT'])
+            if(dataExisting is None):
+                filesToReduce[header['OBJECT']] = [i.split('/')[-1]]
+                
+            else:
+                dataExisting.append(i.split('/')[-1])
+                filesToReduce[header['OBJECT']] = dataExisting
+                
+        
+        except:
+            pass
+        
+    return(filesToReduce)
+
+
+
 class NIRESredux:
     def __init__(self,**kwargs):
         self.baseFolder     = kwargs.get('baseFolder',"") ## Assume current folder 
