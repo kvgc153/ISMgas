@@ -408,11 +408,12 @@ physical
         
         
         ## Show user which range is being extracted ##
-        plt.figure(figsize=(10,7))
+        plt.figure(figsize=(10,7),dpi=200)
         for i in offset_vals:    
             plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
-            plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4*scaleAlpha)
-            plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.4*scaleAlpha)
+            
+            plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.8*scaleAlpha,fill=False)
+            plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='pink',alpha=0.8*scaleAlpha, fill = False,)
             
         plt.tight_layout()
         plt.show()
@@ -566,13 +567,25 @@ physical
             vmin = np.percentile(dataSlit,scaleLimits[0])
             vmax = np.percentile(dataSlit,scaleLimits[1])
             dataSlit = np.fliplr(dataSlit) ## Flip the data to match the orientation of the spectra
-            plt.imshow(
-                dataSlit,
-                origin='lower',
-                cmap='gray',
-                vmin = vmin,
-                vmax = vmax,
-            )
+            
+            if(count==5): ## Order 7 has 1024 pixels and is smaller
+                dataSlit = dataSlit[:,1024:]
+                plt.imshow(
+                    dataSlit,
+                    origin='lower',
+                    cmap='gray',
+                    vmin = vmin,
+                    vmax = vmax,
+                )
+                
+            else: 
+                plt.imshow(
+                    dataSlit,
+                    origin='lower',
+                    cmap='gray',
+                    vmin = vmin,
+                    vmax = vmax,
+                )
             plt.axis('off')
 
             plt.tight_layout()
