@@ -20,6 +20,7 @@ from ISMgas.globalVars import *
 from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle
 from ISMgas.visualization.fits import ScaleImage
 import glob 
+import shutil
 
 #################
 ## Inititalize ##
@@ -644,7 +645,51 @@ physical
         self.dataProduct = dataProduct
                 
             
+    def make2DZoomIn(self):
+        """
+        Under Testing 
+        """
+        z = self.dataProduct['z'] ## Get redshift from last step
+       
+        for count in range(4):
+            data = fits.getdata(f"{self.objid}-sp{count+3}_dataCube.fits")
+            wave = data[1][0] ## Get the wavelength 
+      
+            count = 1
+            for line in linelist_SDSS.keys():
+                ## Check if line is in the wavelength of the order 
+                checkWave = (linelist_SDSS[line]['lambda']/1e4 * (1+z) >wave[0]) & (linelist_SDSS[line]['lambda']/1e4 * (1+z) <wave[-1])
+                if(checkWave):
+                    vmin = np.percentile(data[0],5)
+                    vmax = np.percentile(data[0],95)
+                    plt.figure(figsize=(8,3),dpi=200)
+                    plt.imshow(
+                        data[0],
+                        origin='lower',
+                        cmap='gray',
+                        vmin = vmin,
+                        vmax = vmax,
+                        extent=[wave[0],wave[-1],0,data[0].shape[0]/1e4],
+                        interpolation='none'
+                    )
+                    plt.xticks(ticks= wave)
+                    plt.yticks(ticks= np.array(list(range(data[0].shape[0])))/1e4)   
+                    
+                    plt.xlim([
+                        linelist_SDSS[line]['lambda']/1e4 * (1+z)-0.01,
+                        linelist_SDSS[line]['lambda']/1e4 * (1+z)+0.01
+                        ])
+                    plt.axvline(linelist_SDSS[line]['lambda']/1e4 * (1+z),color='r',linestyle='--')
+                    
+                    plt.title(f"{line}")
+                    plt.tight_layout()
+                    plt.show()
+                    
+                    count+=1
+   
+                    
 
+        
                 
     def save(self):
         ## Save the dataProduct as pkl file
@@ -663,12 +708,28 @@ physical
                 t['lambda'] = self.dataProduct[i]['lambda']
                 t['flux']   = self.dataProduct[i]['flux']
                 
-                t['sky_lambda']   = self.dataProduct[i]['sky_lambda']
-                t['sky']          = self.dataProduct[i]['sky']
+                t['sky_model_lambda']   = self.dataProduct[i]['sky_model_lambda']
+                t['sky_model']          = self.dataProduct[i]['sky_model']
                 ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
-                        
-    
-    
+                
+              
+        ## Delete existing files if any from the folder  
+        cmd = "rm -r %s/*"%(self.objid)
+        os.system(cmd)
+        
+        ## Make a folder to store the data
+        cmd = "mkdir %s"%(self.objid)
+        os.system(cmd)
+        
+        ## Move all the files to the folder
+        filenames = glob.glob(self.objid+"*")
+        for src in filenames:
+            try:
+                dst = self.objid + '/' + src
+                shutil.copyfile(src, dst)
+            except Exception as e:
+                print(e)
+                
     def clean(self):
         cmd = "rm %s*"%(self.objid)        
         os.system(cmd)
