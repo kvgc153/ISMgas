@@ -15,7 +15,7 @@ from scipy.signal import correlate
 from scipy.optimize import curve_fit
 
 ## Custom packages
-from ISMgas.linelist import linelist_NIRES, linelist_SDSS
+from ISMgas.linelist import linelist_NIRES, linelist_SDSS, linelist_NIRES_detailed
 from ISMgas.globalVars import *
 from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle
 from ISMgas.visualization.fits import ScaleImage
@@ -356,31 +356,47 @@ class NIRESredux:
     
     
     
-    def plotReducedSpectra(self,guessZ):
-        self.plot_emission_lines(guessZ)
+    def plotReducedSpectra(self,guessZ, detailed = False):
+        self.plot_emission_lines(guessZ, detailed= detailed)
         os.system("ds9 %s %s -zoom to fit -lock frame image -lock scale -scale zscale -region %s &"%(self.reducedABFile, self.objid+"A_B.fits",self.objid+"_lines.reg"))
               
 
-    def plot_emission_lines(self,z):
+    def plot_emission_lines(self,z,detailed = False):
         ## Superimpose the lines on top of the spectra
         f = open(self.objid+"_lines.reg",'w+')
         f.write('''# Region file format: DS9 version 4.1
 global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1
 physical
         ''')
-        for i in linelist_NIRES: 
-            element               = i[0]
-            wav                   = i[1]*(1+z)
-            x,y                   = np.where(wavelength_scale == int(wav))
-           
-            try:
-                # plt.scatter(y[0],x[0], marker = 'o',s=20,color = 'pink')
-                f.write("circle %d %d 40 # color=red text={%s} \n"%(y[0],x[0],element))
-                print(y[0],x[0],element,wav)
-                
-                # plt.text(y[0],x[0]+50,element,fontsize = 20,color = 'pink')
-            except:
-                pass
+        if(detailed):
+            for i in linelist_NIRES_detailed: 
+                element               = i[0]
+                wav                   = i[1]*(1+z)
+                x,y                   = np.where(wavelength_scale == int(wav))
+            
+                try:
+                    # plt.scatter(y[0],x[0], marker = 'o',s=20,color = 'pink')
+                    f.write("circle %d %d 40 # color=red text={%s} \n"%(y[0],x[0],element))
+                    print(y[0],x[0],element,wav)
+                    
+                    # plt.text(y[0],x[0]+50,element,fontsize = 20,color = 'pink')
+                except:
+                    pass
+            
+        else:
+            for i in linelist_NIRES: 
+                element               = i[0]
+                wav                   = i[1]*(1+z)
+                x,y                   = np.where(wavelength_scale == int(wav))
+            
+                try:
+                    # plt.scatter(y[0],x[0], marker = 'o',s=20,color = 'pink')
+                    f.write("circle %d %d 40 # color=red text={%s} \n"%(y[0],x[0],element))
+                    print(y[0],x[0],element,wav)
+                    
+                    # plt.text(y[0],x[0]+50,element,fontsize = 20,color = 'pink')
+                except:
+                    pass
             
         f.close()    
 

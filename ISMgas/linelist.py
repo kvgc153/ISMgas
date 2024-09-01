@@ -99,6 +99,32 @@ linelist_NIRES = [
     # ['Ar-III'  , 7137.8]  
 ]
 
+
+linelist_NIRES_detailed = [
+    ['[O II]'     , 3727.1],
+    ['[O II]'     , 3729.9],
+    ['Ne-III'  , 3869.9],
+    ['H-e'     , 3890.2],
+    ['Ne-III'  , 3971.1],    
+    ['H-delta' , 4102.9],    
+    ['H-gamma' , 4341.7], 
+    ['OIII'    , 4364.4], 
+    ['He-II'   , 4687.0], 
+    ['Hb'  , 4862.7],
+    ['[O III]'    , 4960.3],
+    ['[O III]'    , 5008.2],
+    ['He-II'   , 5413.0],
+    ['OI'      , 5578.9],
+    ['OI'      , 6302.0],
+    ['S-III'   , 6313.8],
+    ['OI'      , 6365.5],              
+    ['N-II'    , 6549.9],          
+    ['Ha' , 6564.6],
+    ['N-II'    , 6585.3],
+    ['S II'    , 6718.3], 
+    ['S II'    , 6732.7],
+    ['Ar-III'  , 7137.8]  
+]
 #//
 #// This is the set of emission lines from the spZline files.
 #// See $IDLSPEC2D_DIR/etc/emlines.par
