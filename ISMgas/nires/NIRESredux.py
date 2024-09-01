@@ -446,35 +446,46 @@ physical
             'reducedABFile': self.reducedABFile,
             'wavOffset': self.wavOffset,
             'wavOffsetStd': self.wavOffsetStd,
+            'comments': '',
             'sp3':{
                 'lambda' : [],
                 'flux'   : [],
                 'sky_lambda' : [], 
-                'sky'    : []
+                'sky'    : [],
+                'sky_model_lambda' : [], 
+                'sky_model'    : []
             },
             'sp4':{
                 'lambda' : [],
                 'flux'   : [],
                 'sky_lambda' : [],
-                'sky'    : []
+                'sky'    : [],
+                'sky_model_lambda' : [], 
+                'sky_model'    : []
             },
             'sp5':{
                 'lambda' : [],
                 'flux'   : [],
                 'sky_lambda' : [],
-                'sky'    : []
+                'sky'    : [],
+                'sky_model_lambda' : [], 
+                'sky_model'    : []
             },
             'sp6':{
                 'lambda' : [],
                 'flux'   : [],
                 'sky_lambda' : [],
-                'sky'    : []
+                'sky'    : [],
+                'sky_model_lambda' : [], 
+                'sky_model'    : []
             },
             'sp7':{
                 'lambda' : [],
                 'flux'   : [],
                 'sky_lambda' : [],
-                'sky'    : []
+                'sky'    : [],
+                'sky_model_lambda' : [], 
+                'sky_model'    : []
             },
         }
 
@@ -484,6 +495,7 @@ physical
         
         
         ##############################################
+        ##  IMPLEMENT -- save the true sky spectra as well not just the model
              
         count = 1 
         for i in offset_vals:
@@ -506,8 +518,8 @@ physical
                 dataProduct['sp'+ str(count+2)]['flux']   = data_f1[:1024]
                 
                 
-                dataProduct['sp'+ str(count+2)]['sky_lambda'] = wavelength.data
-                dataProduct['sp'+ str(count+2)]['sky']        = sky_flux.data
+                dataProduct['sp'+ str(count+2)]['sky_model_lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['sky_model']        = sky_flux.data
 
                 
                 plt.plot(
@@ -522,8 +534,8 @@ physical
                 dataProduct['sp'+ str(count+2)]['flux']   = data_f1
                 
                 
-                dataProduct['sp'+ str(count+2)]['sky_lambda'] = wavelength.data
-                dataProduct['sp'+ str(count+2)]['sky']        = sky_flux.data
+                dataProduct['sp'+ str(count+2)]['sky_model_lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['sky_model']        = sky_flux.data
 
                 plt.plot(
                     wavelengthCorrected, 
@@ -584,7 +596,14 @@ physical
             dataSlit     = data[slitCoords[0]:slitCoords[1],:]
             vmin = np.percentile(dataSlit,scaleLimits[0])
             vmax = np.percentile(dataSlit,scaleLimits[1])
-            # dataSlit = np.fliplr(dataSlit) ## Flip the data to match the orientation of the spectra
+            
+            if(count<5):
+                ## Make wavelegth 2D image and save it as a fits file
+                hdu = fits.PrimaryHDU()
+                wav2D  = np.zeros(dataSlit.shape)
+                wav2D[:,:] = wavelengthCorrected
+                hdu.data = [np.fliplr(dataSlit), np.fliplr(wav2D)]
+                hdu.writeto(f"{self.objid}-sp{count+2}_dataCube.fits",overwrite=True)            
             
             if(count==5): ## Order 7 has 1024 pixels and is smaller
                 dataSlit = data[:,:1024]
@@ -623,22 +642,31 @@ physical
             plt.savefig(f"{self.objid}-{count-1}.png", dpi=100)
             
         self.dataProduct = dataProduct
-        
-        ## Save the dataProduct
-        # print("Final dataproduct: ", dataProduct)
-        save_as_pickle(dataProduct,self.objid+"_dataProduct.pkl")
-        
+                
             
+
+                
+    def save(self):
+        ## Save the dataProduct as pkl file
+        print("Final dataproduct: ", self.dataProduct)
+        save_as_pickle(self.dataProduct,self.objid+"_dataProduct.pkl")
+        
+        ## Also save it as a txt file in case all else fails
+        f = open(self.objid+"_dataProduct.txt",'w+')
+        f.write(str(self.dataProduct))
+        f.close()
+        
         ## Store the spectra as csv file for easy access 
-        for i in dataProduct.keys():
+        for i in self.dataProduct.keys():
             if(i in ['sp3','sp4','sp5','sp6','sp7']):
                 t = Table()
-                t['lambda'] = dataProduct[i]['lambda']
-                t['flux']   = dataProduct[i]['flux']
+                t['lambda'] = self.dataProduct[i]['lambda']
+                t['flux']   = self.dataProduct[i]['flux']
                 
-                t['sky_lambda']   = dataProduct[i]['sky_lambda']
-                t['sky']          = dataProduct[i]['sky']
+                t['sky_lambda']   = self.dataProduct[i]['sky_lambda']
+                t['sky']          = self.dataProduct[i]['sky']
                 ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
+                        
     
     
     def clean(self):
