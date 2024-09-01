@@ -563,13 +563,16 @@ physical
             plt.subplot(2,1,2)
             slitCoords   = NIRES_calib_configs['sp'+str(count+2)]['slit']
             ## Extract the data from the slit
+            
+            ## Make a cutout of the slit to find the vmin and vmax values 
             dataSlit     = data[slitCoords[0]:slitCoords[1],:]
             vmin = np.percentile(dataSlit,scaleLimits[0])
             vmax = np.percentile(dataSlit,scaleLimits[1])
-            dataSlit = np.fliplr(dataSlit) ## Flip the data to match the orientation of the spectra
+            # dataSlit = np.fliplr(dataSlit) ## Flip the data to match the orientation of the spectra
             
             if(count==5): ## Order 7 has 1024 pixels and is smaller
-                dataSlit = dataSlit[:,1024:]
+                dataSlit = data[:,:1024]
+                dataSlit = np.fliplr(dataSlit)
                 plt.imshow(
                     dataSlit,
                     origin='lower',
@@ -577,8 +580,12 @@ physical
                     vmin = vmin,
                     vmax = vmax,
                 )
+                for i in offset_vals:                        
+                    plt.axhspan(Amin-i*offset,Amax-i*offset,color='cyan',alpha=scaleAlpha,fill=False)
+                    plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='cyan',alpha=scaleAlpha, fill = False)
                 
             else: 
+                dataSlit = np.fliplr(data)
                 plt.imshow(
                     dataSlit,
                     origin='lower',
@@ -586,6 +593,11 @@ physical
                     vmin = vmin,
                     vmax = vmax,
                 )
+                for i in offset_vals:                        
+                    plt.axhspan(Amin-i*offset,Amax-i*offset,color='cyan',alpha=scaleAlpha,fill=False)
+                    plt.axhspan(Bmin-i*offset,Bmax-i*offset,color='cyan',alpha=scaleAlpha, fill = False)
+                    
+            plt.ylim([slitCoords[0],slitCoords[1]])
             plt.axis('off')
 
             plt.tight_layout()
