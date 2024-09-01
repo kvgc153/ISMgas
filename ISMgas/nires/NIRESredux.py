@@ -679,7 +679,7 @@ physical
                     
                     xvelocity = wavelengthToVelocity(x,linelist_SDSS[line]['lambda']/1e4)
 
-                    plt.subplot(9,4,cnt)
+                    plt.subplot(12,4,cnt)
                     # Create scatter plot
                     plt.scatter(xvelocity, y, c=colors, cmap='gray', vmin=vmin, vmax=vmax, marker='s', s=20)
 
