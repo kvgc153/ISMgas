@@ -17,7 +17,7 @@ from scipy.optimize import curve_fit
 ## Custom packages
 from ISMgas.linelist import linelist_NIRES, linelist_SDSS, linelist_NIRES_detailed
 from ISMgas.globalVars import *
-from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle
+from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle,wavelengthToVelocity
 from ISMgas.visualization.fits import ScaleImage
 import glob 
 import shutil
@@ -345,7 +345,8 @@ class NIRESredux:
                 plt.title(f"Order {count+2}", fontsize = 18)
                 plt.ylim(ylim)
                 count+=1
-                
+                plt.tight_layout()
+                plt.savefig(f"{self.objid}_sp{count+2}_wavsolution.png",dpi=100)
             
         
         return np.median(wavelengthOffset), np.std(wavelengthOffset)
@@ -647,46 +648,57 @@ physical
             
     def make2DZoomIn(self):
         """
-        Under Testing 
+        Plots a zoom in of the 2D image for the lines
+        
         """
         z = self.dataProduct['z'] ## Get redshift from last step
-       
+        plt.figure(dpi=200, figsize=(7,20))
+        cnt = 1
         for count in range(4):
             data = fits.getdata(f"{self.objid}-sp{count+3}_dataCube.fits")
-            wave = data[1][0] ## Get the wavelength 
+            wave = data[1][0]/(1+z) ## Get the wavelength 
       
-            count = 1
+            
             for line in linelist_SDSS.keys():
                 ## Check if line is in the wavelength of the order 
-                checkWave = (linelist_SDSS[line]['lambda']/1e4 * (1+z) >wave[0]) & (linelist_SDSS[line]['lambda']/1e4 * (1+z) <wave[-1])
+                checkWave = (linelist_SDSS[line]['lambda']/1e4 >wave[0]) & (linelist_SDSS[line]['lambda']/1e4 <wave[-1])
                 if(checkWave):
                     vmin = np.percentile(data[0],5)
                     vmax = np.percentile(data[0],95)
-                    plt.figure(figsize=(8,3),dpi=200)
-                    plt.imshow(
-                        data[0],
-                        origin='lower',
-                        cmap='gray',
-                        vmin = vmin,
-                        vmax = vmax,
-                        extent=[wave[0],wave[-1],0,data[0].shape[0]/1e4],
-                        interpolation='none'
-                    )
-                    plt.xticks(ticks= wave)
-                    plt.yticks(ticks= np.array(list(range(data[0].shape[0])))/1e4)   
                     
-                    plt.xlim([
-                        linelist_SDSS[line]['lambda']/1e4 * (1+z)-0.01,
-                        linelist_SDSS[line]['lambda']/1e4 * (1+z)+0.01
-                        ])
-                    plt.axvline(linelist_SDSS[line]['lambda']/1e4 * (1+z),color='r',linestyle='--')
+                    
+                    # Extract x and y coordinates
+                    x = np.tile(wave, data[0].shape[0])
+                    y = np.repeat(np.arange(data[0].shape[0]), data[0].shape[1])
+                    colors = data[0].flatten()
+                    
+                    mask = (x>linelist_SDSS[line]['lambda']/1e4 -0.001) & (x<linelist_SDSS[line]['lambda']/1e4 +0.001)
+                    x = x[mask]
+                    y = y[mask]
+                    colors = colors[mask]
+                    
+                    xvelocity = wavelengthToVelocity(x,linelist_SDSS[line]['lambda']/1e4)
+
+                    plt.subplot(9,4,cnt)
+                    # Create scatter plot
+                    plt.scatter(xvelocity, y, c=colors, cmap='gray', vmin=vmin, vmax=vmax, marker='s', s=20)
+
+                    plt.xlim([-700,700])
+                    # plt.xticks(np.arange(-5000,5001,2500))
+                    # plt.xlim([
+                    #     linelist_SDSS[line]['lambda']/1e4 -0.0008,
+                    #     linelist_SDSS[line]['lambda']/1e4 +0.0008
+                    #     ])
+                    # plt.axvline(linelist_SDSS[line]['lambda']/1e4 ,color='r',linestyle='--')
+                    plt.axvline(0 ,color='r',linestyle='--')
                     
                     plt.title(f"{line}")
-                    plt.tight_layout()
-                    plt.show()
+                    # plt.tight_layout()
                     
-                    count+=1
-   
+                    cnt+=1
+        plt.tight_layout()
+        plt.savefig(f"{self.objid}_2D_zoom.png")
+        plt.close()
                     
 
         
@@ -696,10 +708,6 @@ physical
         print("Final dataproduct: ", self.dataProduct)
         save_as_pickle(self.dataProduct,self.objid+"_dataProduct.pkl")
         
-        ## Also save it as a txt file in case all else fails
-        f = open(self.objid+"_dataProduct.txt",'w+')
-        f.write(str(self.dataProduct))
-        f.close()
         
         ## Store the spectra as csv file for easy access 
         for i in self.dataProduct.keys():
@@ -729,6 +737,11 @@ physical
                 shutil.copyfile(src, dst)
             except Exception as e:
                 print(e)
+                
+        ## Delete existing files if any from the folder  
+        cmd = "rm %s*"%(self.objid)
+        os.system(cmd)
+        
                 
     def clean(self):
         cmd = "rm %s*"%(self.objid)        
