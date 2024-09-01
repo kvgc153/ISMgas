@@ -337,8 +337,8 @@ class NIRESredux:
                 
                 
                 plt.figure(figsize=figsize)
-                plt.plot(wavelength - self.wavOffset, data_f1, color='black')
-                plt.plot(wavelength, sky_flux*scalesky , color='orange')
+                plt.plot(wavelength - self.wavOffset, data_f1, color='black') 
+                plt.plot(wavelength, sky_flux*scalesky , color='orange') ## This is the 'true sky'
                 plt.xlabel("Wavelength (in microns)", fontsize = 18)
                 plt.ylabel("Flux (arbitrary units)", fontsize = 18)
                 plt.title(f"Order {count+2}", fontsize = 18)
@@ -432,26 +432,31 @@ physical
             'sp3':{
                 'lambda' : [],
                 'flux'   : [],
+                'sky_lambda' : [], 
                 'sky'    : []
             },
             'sp4':{
                 'lambda' : [],
                 'flux'   : [],
+                'sky_lambda' : [],
                 'sky'    : []
             },
             'sp5':{
                 'lambda' : [],
                 'flux'   : [],
+                'sky_lambda' : [],
                 'sky'    : []
             },
             'sp6':{
                 'lambda' : [],
                 'flux'   : [],
+                'sky_lambda' : [],
                 'sky'    : []
             },
             'sp7':{
                 'lambda' : [],
                 'flux'   : [],
+                'sky_lambda' : [],
                 'sky'    : []
             },
         }
@@ -472,39 +477,46 @@ physical
             data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:],axis=0) - np.sum(data[Bmin-i*offset:Bmax-i*offset,:],axis=0)
             
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
-            wavelength    = t['wavelength']/10000. ## microns
-            wavelength    = wavelength  - self.wavOffset ## Correct for the offset
+            
+            wavelength             = t['wavelength']/10000. ## microns
+            wavelengthCorrected    = wavelength  - self.wavOffset ## Correct for the offset
             
             col           = t['col']
             sky_flux      = t['sky']
                         
             if(count==5): ## Order 7 has 1024 pixels and is smaller
-                dataProduct['sp'+ str(count+2)]['lambda'] = wavelength.data
-                dataProduct['sp'+ str(count+2)]['flux'] = data_f1[:1024]
-                dataProduct['sp'+ str(count+2)]['sky'] = sky_flux.data
+                dataProduct['sp'+ str(count+2)]['lambda'] = wavelengthCorrected.data
+                dataProduct['sp'+ str(count+2)]['flux']   = data_f1[:1024]
+                
+                
+                dataProduct['sp'+ str(count+2)]['sky_lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['sky']        = sky_flux.data
 
                 
                 plt.plot(
-                    wavelength, 
+                    wavelengthCorrected, 
                     data_f1[:1024],
                     color   = 'black',
                     label   = 'spectra'
                     )
                 
             else :
-                dataProduct['sp'+ str(count+2)]['lambda'] = wavelength.data
-                dataProduct['sp'+ str(count+2)]['flux'] = data_f1
-                dataProduct['sp'+ str(count+2)]['sky'] = sky_flux.data
+                dataProduct['sp'+ str(count+2)]['lambda'] = wavelengthCorrected.data
+                dataProduct['sp'+ str(count+2)]['flux']   = data_f1
+                
+                
+                dataProduct['sp'+ str(count+2)]['sky_lambda'] = wavelength.data
+                dataProduct['sp'+ str(count+2)]['sky']        = sky_flux.data
 
                 plt.plot(
-                    wavelength, 
+                    wavelengthCorrected, 
                     data_f1,
                     color   = 'black',
                     label   = 'spectra'
                     )
                 
             plt.plot(
-                    wavelength,
+                    wavelength, ## Use the original uncorrected wavelength for the sky as its the true sky
                     sky_flux*10-100,
                     linewidth   = 2,
                     color       = 'darkorange',
@@ -582,7 +594,9 @@ physical
                 t = Table()
                 t['lambda'] = dataProduct[i]['lambda']
                 t['flux']   = dataProduct[i]['flux']
-                t['sky']    = dataProduct[i]['sky']
+                
+                t['sky_lambda']   = dataProduct[i]['sky_lambda']
+                t['sky']          = dataProduct[i]['sky']
                 ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
     
     
