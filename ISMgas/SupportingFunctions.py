@@ -26,6 +26,8 @@ from astropy import units as u
 from astropy.table import Table
 from astropy import units
 
+from ISMgas.linelist import linelist_highz, linelist_SDSS
+
 import astroscrappy
 import json
 
@@ -318,6 +320,25 @@ def rotatePoints(x,y, xcenter, ycenter, theta):
 ###############################
 ### Uncategorized functions ###
 ###############################
+
+def printLinelist(z=0, linelist='highz'):
+    """Given a redshift, this function prints the linelist at that redshift
+
+    Args:
+        z (int, optional): _description_. Defaults to 0.
+        linelist (str, optional): _description_. Defaults to 'highz'.
+    """
+    ## Print header
+    print("Line \t Rest Wavelength \t Observed Wavelength")
+    print("-------------------------------------------------")
+    
+    if(linelist=='highz'):
+        for i in linelist_highz.keys():
+            print(i,"\t", linelist_highz[i]['lambda'],"\t", linelist_highz[i]['lambda']*(1+z))
+            
+    if(linelist=='sdss'):
+        for i in linelist_SDSS.keys():
+            print(i,"\t", linelist_SDSS[i]['lambda'],"\t", linelist_SDSS[i]['lambda']*(1+z))
 
 def save_as_pickle(arrayToSave,fileName:str):
     pickle.dump(arrayToSave, open( fileName, "wb" ) )
