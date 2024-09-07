@@ -505,7 +505,21 @@ physical
             
             plt.subplot(2,1,1)
 
-            data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:],axis=0) - np.sum(data[Bmin-i*offset:Bmax-i*offset,:],axis=0)
+            ## A extraction 
+            data_Aframe   = fits.getdata(self.objid+"_A-corrected.fits")
+            data_Bframe   = fits.getdata(self.objid+"_B-corrected.fits")
+            
+            
+            data_Aframe_2d = data_Aframe[Amin-i*offset:Amax-i*offset,:]- data_Aframe[Bmin-i*offset:Bmax-i*offset,:]
+            data_Bframe_2d = data_Bframe[Bmin-i*offset:Bmax-i*offset,:]- data_Bframe[Amin-i*offset:Amax-i*offset,:]
+            
+            data_Aframe_sum = np.sum(data_Aframe_2d,axis=0)
+            data_Bframe_sum = np.sum(data_Bframe_2d,axis=0)
+            
+            data_f1 = data_Aframe_sum + data_Bframe_sum
+            
+            ## Previous implmentation 
+            # data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:],axis=0) - np.sum(data[Bmin-i*offset:Bmax-i*offset,:],axis=0)
             
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
             
