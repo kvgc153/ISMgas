@@ -15,7 +15,7 @@ from scipy.signal import correlate
 from scipy.optimize import curve_fit
 
 ## Custom packages
-from ISMgas.linelist import linelist_NIRES, linelist_SDSS, linelist_NIRES_detailed
+from ISMgas.linelist import linelist_NIRES, linelist_SDSS, linelist_NIRES_detailed,linelist_SDSS_emission
 from ISMgas.globalVars import *
 from ISMgas.SupportingFunctions import interpolateData, save_as_pickle, load_pickle,wavelengthToVelocity
 from ISMgas.visualization.fits import ScaleImage
@@ -176,7 +176,10 @@ class NIRESredux:
         plt.savefig(self.objid+"_slitPosition.png",dpi=150)
 
         ## Store A-B of the mean files 
-        fits.writeto(self.objid+"_slitPosition.fits",A_data_mean-B_data_mean,overwrite=True)
+        hdu = fits.PrimaryHDU()
+        hdu.data = A_data_mean-B_data_mean
+        hdu.header = fits.getheader(self.slitAFrames[0])
+        hdu.writeto(self.objid+"_slitPosition.fits",overwrite=True)
         os.system("ds9 %s"%(self.objid+"_slitPosition.fits &"))
 
         
@@ -409,6 +412,7 @@ physical
             Amin = 630, 
             Amax = 655, 
             scaleLimits = [20,85],
+            waveLimits = [1,99.99],
             z = 2,
             scaleAlpha = 1
         ):
@@ -443,6 +447,14 @@ physical
             'objid': self.objid,
             'A': self.AFrames,
             'B': self.BFrames,
+            'userInputs':{  
+                'Amin': Amin,
+                'Amax': Amax,
+                'Bmin': Bmin,
+                'Bmax': Bmax,
+                'delta': delta,
+                'order': order
+            } , 
             'slitA': self.slitAFrames,
             'slitB': self.slitBFrames,
             'reducedABFile': self.reducedABFile,
@@ -570,8 +582,8 @@ physical
             
 
             trans = plt.gca().get_xaxis_transform()             
-            for i in linelist_SDSS.keys():
-                line = linelist_SDSS[i]['lambda']
+            for i in linelist_SDSS_emission.keys():
+                line = linelist_SDSS_emission[i]['lambda']
                 
                 ## Plot only if the line is within the wavelength range
                 if(line*(1+z)/10000. > wav_minmax[count-1][1]/10000. and line*(1+z)/10000. < wav_minmax[count-1][0]/10000.):
@@ -579,7 +591,7 @@ physical
                     plt.axvline([line*(1+z)/10000.],alpha=0.6)
 
                     plt.gca().annotate(
-                            linelist_SDSS[i]['pltLabel'],
+                            linelist_SDSS_emission[i]['pltLabel'],
                             xy          = (line*(1+z)/10000., 1.05),
                             xycoords    = trans,
                             fontsize    = 10,
@@ -596,7 +608,7 @@ physical
             plt.yticks(fontsize= 15)
             plt.legend(fontsize = 15)
             plt.xlim([wavelength[-1],wavelength[0]])
-            plt.ylim([-150,np.percentile(data_f1,99.99)])
+            plt.ylim([-150,np.percentile(data_f1,waveLimits[1])])
             plt.tight_layout()
 
           
@@ -666,7 +678,7 @@ physical
         
         """
         z = self.dataProduct['z'] ## Get redshift from last step
-        plt.figure(dpi=200, figsize=(7,20))
+        plt.figure(dpi=200, figsize=(10,20))
         cnt = 1
         for count in range(4):
             data = fits.getdata(f"{self.objid}-sp{count+3}_dataCube.fits")
@@ -693,7 +705,7 @@ physical
                     
                     xvelocity = wavelengthToVelocity(x,linelist_SDSS[line]['lambda']/1e4)
 
-                    plt.subplot(12,4,cnt)
+                    plt.subplot(12,6,cnt)
                     # Create scatter plot
                     plt.scatter(xvelocity, y, c=colors, cmap='gray', vmin=vmin, vmax=vmax, marker='s', s=20)
 
@@ -734,6 +746,10 @@ physical
                 t['sky_model']          = self.dataProduct[i]['sky_model']
                 ascii.write(t,self.objid+"_"+i+"_1D.csv",format='csv',overwrite=True)
                 
+                
+        ## Make a report 
+        cmd = "pdfjoin  --rotateoversize false %s_slitPosition.png %s-1.png %s-2.png %s-3.png %s-4.png %s-5.png %s_2D_zoom.png -o %s_report.pdf"%(self.objid,self.objid,self.objid,self.objid,self.objid,self.objid,self.objid,self.objid)
+        os.system(cmd)    
               
         ## Delete existing files if any from the folder  
         cmd = "rm -r %s/*"%(self.objid)
