@@ -61,8 +61,11 @@ class kcwiAnalysis(GalaxyProperties):
         self.meanStart    = kwargs.get('meanstart',500)
         self.meanEnd     = kwargs.get('meanend', 1500)
 
-        self.dataCubeMean = np.mean(self.dataCube[self.meanStart:self.meanEnd,:,:],0)
-
+        try:
+            self.dataCubeMean = np.mean(self.dataCube[self.meanStart:self.meanEnd,:,:],0)
+        except IndexError:
+            ## if there is only frame in the datacube, use that frame as the mean
+            self.dataCubeMean = self.dataCube 
         self.rscale, self.gscale, self.bscale     = kwargs.get('scale', [1,1.4,2])
         self.Q, self.alpha                        = kwargs.get('q_alpha', [3,0.4])
         self.masklevel, self.maskoffset           = kwargs.get('mask_offset', [-1.0,0.0])

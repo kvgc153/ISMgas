@@ -265,7 +265,6 @@ class NIRESredux:
             ylim = [None,None]
         ):
         
-        ## Plotting the region to be  extracted --  160 pixels is roughly 18''
         offset_vals   = NIRES_calib_configs[order]['offsetVals']
         
         data          = self.data1Corrected
