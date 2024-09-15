@@ -143,7 +143,12 @@ class NIRESredux:
         self.objid          = kwargs.get('objid')
         self.reducedABFile  = ''
         
-        self.wavOffset      = 0
+        self.wavOffsetResults = {} 
+        self.wavOffsetArray = []
+        self.wavOffset =  0 
+        self.wavOffsetStd = 0
+        
+        
         self.dataProduct    = {}
         
 
@@ -202,29 +207,12 @@ class NIRESredux:
         ## Reduce the coadded frames 
         file1   = self.objid+"_A.fits"
         file2   = self.objid+"_B.fits"
-        
-
+    
 
         if(mode == 'autox'):
             ## Shell commands to reduce the data
             command   = NIRES_nsxPath + file1 + ' ' +  file2 + ' -autox'
             os.system(command)
-            
-        if(mode=='manual'):
-            command   = NIRES_nsxPath + file1 + ' ' +  file2 + ' bk=' + bk + ' sp=' + sp
-            os.system(command)
-            
-            files = glob.glob(self.objid+"*.csv")
-            for file in sorted(files):
-                plt.figure(dpi=200, figsize=(15,7))
-                data = ascii.read(file,delimiter=',')
-                plt.plot(data['wave'], data['object'],color='black')
-                # plt.plot(data['col'], data['backgnd'],color='purple')
-                # plt.plot(data['col'], data['sky'],color='orange')
-                
-                plt.ylim([np.percentile(data['object'],1),np.percentile(data['object'],99)])    
-
-                plt.show()
 
         self.data1Corrected = fits.getdata(self.objid+"_A-corrected.fits")
         self.data2Corrected = fits.getdata(self.objid+"_B-corrected.fits")
@@ -233,25 +221,9 @@ class NIRESredux:
         fits.writeto(self.objid+"A_B.fits",A_data_mean-B_data_mean,overwrite=True)
 
 
-        
         self.reducedABFile = self.objid+"_A-"+self.objid[-2:]+"_B-corrected.fits"
         print(self.reducedABFile)
-        
-        ## Extract each order and store them 
-        dataReduced = fits.getdata(self.reducedABFile)
-        
-        ## Make a datacube with the corrected and reduced data
-        fits.writeto(self.objid+"_datacube.fits",np.array([self.data1Corrected, self.data2Corrected, dataReduced ]),overwrite=True)
 
-        
-        ## bad code ---
-        for i in  NIRES_calib_configs.keys():
-            slitMin, slitMax    = NIRES_calib_configs[i]['slit']
-            dataSliced          = dataReduced[slitMin: slitMax, :]
-            fits.writeto(i+".fits", dataSliced, overwrite=True)
-                
-                
-        
     
     def findWavelengthOffset(
             self, 
@@ -269,20 +241,26 @@ class NIRESredux:
         
         data          = self.data1Corrected
 
+        ## Show user which range is being extracted ##
         plt.figure(figsize=(10,7))
         for i in offset_vals:    
             plt.imshow(data,origin='lower',vmin=-10,vmax=10,cmap ='gray')
             plt.axhspan(Amin-i*offset,Amax-i*offset,color='purple',alpha=0.4)
-            
         plt.tight_layout()
+        ##############################################
         
-        wavelengthOffset = []
+        wavelengthOffset = [] ## Array that stores the wavelength offset
+        sky_observed    = [] ## Array that stores the observed sky spectra
+        
         count = 1 
         plt.figure(figsize=(15,5))
         for i in offset_vals:          
             
-            if(count<5):
+            if(count<5): # We will only do this for the first 4 orders 
+                
                 data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:], axis=0)
+                sky_observed.append(data_f1)
+                
                 
                 t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
                 wavelength    = t['wavelength']/10000.
@@ -290,7 +268,7 @@ class NIRESredux:
                 sky_flux      = t['sky']
                 
                 
-                ## Interpolate the data to the same wavelength scale
+                ## Interpolate the data to the same wavelength scale of 0.1 Angstroms
                 deltaWav_new = 0.00001
                 wavelength_new = np.arange(wavelength[-1],wavelength[0],deltaWav_new)
                 
@@ -302,7 +280,7 @@ class NIRESredux:
                 spectra = data_f1
                 template = sky_flux*scalesky
                 
-                    # Normalize the data
+                # Normalize the data
                 spectra = (spectra - np.min(spectra)) / (np.max(spectra) - np.min(spectra))
                 template = (template - np.min(template)) / (np.max(template) - np.min(template))
                 
@@ -323,8 +301,26 @@ class NIRESredux:
         plt.suptitle("Cross correlation of the spectra with the sky template")
         plt.tight_layout()
         print("Wavelength offset: ", np.median(wavelengthOffset), '+-', np.std(wavelengthOffset))
+        
         self.wavOffset = np.median(wavelengthOffset)
         self.wavOffsetStd = np.std(wavelengthOffset)
+        self.wavOffsetArray = wavelengthOffset
+        self.wavOffsetResults = {
+            'wavOffset': self.wavOffset,
+            'wavOffsetStd': self.wavOffsetStd,
+            'offset_vals': {
+                'sp4': wavelengthOffset[3],
+                'sp5': wavelengthOffset[2],
+                'sp6': wavelengthOffset[1],
+                'sp7': wavelengthOffset[0]
+            },
+            'sky_observed': {
+                'sp4': sky_observed[3],
+                'sp5': sky_observed[2],
+                'sp6': sky_observed[1],
+                'sp7': sky_observed[0]
+            }
+        }
         
         ## Diagonstic plot
         count = 1 
@@ -340,7 +336,7 @@ class NIRESredux:
                 
                 
                 plt.figure(figsize=figsize)
-                plt.plot(wavelength - self.wavOffset, data_f1, color='black') 
+                plt.plot(wavelength - self.wavOffsetArray[count-1], data_f1, color='black') 
                 plt.plot(wavelength, sky_flux*scalesky , color='orange') ## This is the 'true sky'
                 plt.xlabel("Wavelength (in microns)", fontsize = 18)
                 plt.ylabel("Flux (arbitrary units)", fontsize = 18)
@@ -349,15 +345,7 @@ class NIRESredux:
                 count+=1
                 plt.tight_layout()
                 plt.savefig(f"{self.objid}_sp{count+2}_wavsolution.png",dpi=100)
-            
-        
-        return np.median(wavelengthOffset), np.std(wavelengthOffset)
-            
-    
-    
-    
-    
-    
+                plt.close()
     
     
     def plotReducedSpectra(self,guessZ, detailed = False):
@@ -457,59 +445,45 @@ physical
             'slitA': self.slitAFrames,
             'slitB': self.slitBFrames,
             'reducedABFile': self.reducedABFile,
+            'wavOffsetResults': self.wavOffsetResults,
+            'wavOffsetArray': self.wavOffsetArray,
             'wavOffset': self.wavOffset,
             'wavOffsetStd': self.wavOffsetStd,
             'comments': '',
             'sp3':{
                 'lambda' : [],
                 'flux'   : [],
-                'sky_lambda' : [], 
-                'sky'    : [],
                 'sky_model_lambda' : [], 
                 'sky_model'    : []
             },
             'sp4':{
                 'lambda' : [],
                 'flux'   : [],
-                'sky_lambda' : [],
-                'sky'    : [],
                 'sky_model_lambda' : [], 
                 'sky_model'    : []
             },
             'sp5':{
                 'lambda' : [],
                 'flux'   : [],
-                'sky_lambda' : [],
-                'sky'    : [],
                 'sky_model_lambda' : [], 
                 'sky_model'    : []
             },
             'sp6':{
                 'lambda' : [],
                 'flux'   : [],
-                'sky_lambda' : [],
-                'sky'    : [],
                 'sky_model_lambda' : [], 
                 'sky_model'    : []
             },
             'sp7':{
                 'lambda' : [],
                 'flux'   : [],
-                'sky_lambda' : [],
-                'sky'    : [],
                 'sky_model_lambda' : [], 
                 'sky_model'    : []
             },
-        }
-
-        
-        
-        
+        }      
         
         
         ##############################################
-        ##  IMPLEMENT -- save the true sky spectra as well not just the model
-             
         count = 1 
         for i in offset_vals:
             plt.figure(figsize = (20,8), dpi=100)
@@ -520,7 +494,6 @@ physical
             data_Aframe   = fits.getdata(self.objid+"_A-corrected.fits")
             data_Bframe   = fits.getdata(self.objid+"_B-corrected.fits")
             
-            
             data_Aframe_2d = data_Aframe[Amin-i*offset:Amax-i*offset,:]- data_Aframe[Bmin-i*offset:Bmax-i*offset,:]
             data_Bframe_2d = data_Bframe[Bmin-i*offset:Bmax-i*offset,:]- data_Bframe[Amin-i*offset:Amax-i*offset,:]
             
@@ -529,13 +502,12 @@ physical
             
             data_f1 = data_Aframe_sum + data_Bframe_sum
             
-            ## Previous implmentation 
-            # data_f1       = np.sum(data[Amin-i*offset:Amax-i*offset,:],axis=0) - np.sum(data[Bmin-i*offset:Bmax-i*offset,:],axis=0)
             
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
             
             wavelength             = t['wavelength']/10000. ## microns
-            wavelengthCorrected    = wavelength  - self.wavOffset ## Correct for the offset
+            wavelengthoffset       = self.wavOffsetArray[count-1]
+            wavelengthCorrected    = wavelength  - wavelengthoffset ## Correct for the offset
             
             col           = t['col']
             sky_flux      = t['sky']
