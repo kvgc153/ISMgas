@@ -345,7 +345,6 @@ class NIRESredux:
                 count+=1
                 plt.tight_layout()
                 plt.savefig(f"{self.objid}_sp{count+2}_wavsolution.png",dpi=100)
-                plt.close()
     
     
     def plotReducedSpectra(self,guessZ, detailed = False):
@@ -506,7 +505,10 @@ physical
             t             = Table.read(wav_sol_folder+ wav_sol_files[count-1],format='ascii.csv')
             
             wavelength             = t['wavelength']/10000. ## microns
-            wavelengthoffset       = self.wavOffsetArray[count-1]
+            if(count==5): ## Order 7 has 1024 pixels and is smaller
+                wavelengthoffset       = 0 # Note this in the docs that we dont have an offset for this order 
+            else:    
+                wavelengthoffset       = self.wavOffsetArray[count-1]
             wavelengthCorrected    = wavelength  - wavelengthoffset ## Correct for the offset
             
             col           = t['col']
