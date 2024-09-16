@@ -26,6 +26,8 @@ from astropy import units as u
 from astropy.table import Table
 from astropy import units
 
+from ISMgas.linelist import linelist_highz, linelist_SDSS
+
 import astroscrappy
 import json
 
@@ -43,10 +45,10 @@ def convertDegreesToHMS(ra_deg:float ,dec_deg:float)->str:
     return(c.to_string('hmsdms').replace('h',':').replace('d',':').replace('m',':').replace('s',''))
 
 
-def saveSpectra(wave, flux, error, fileName, folderPrefix = ''):
-    return(save_spectra(wave, flux, error, fileName, folderPrefix))
+def saveSpectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'):
+    return(save_spectra(wave, flux, error, fileName, folderPrefix, format))
 
-def save_spectra(wave, flux, error, fileName, folderPrefix = ''):
+def save_spectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'):
     """
     Utility function to save spectra as a fits file (legacy function). 
     Use saveSpectra instead.
@@ -58,17 +60,23 @@ def save_spectra(wave, flux, error, fileName, folderPrefix = ''):
         fileName                        : filename to save as fits
         folderPrefix (str, optional)    : folder prefix. Defaults to ''.
     """
-    t             = Table()
-    t['LAMBDA']   = [wave]
-    t['SPEC']     = [flux]
-    t['ERR']      = [error]
-    t['IVAR']     = [1/error**2] ## 1/sigma^^2 = ivar
-    
-    t.write(folderPrefix+"%s.fits"%(fileName),overwrite=True)
+    if(format == 'fits'):
+        t             = Table()
+        t['LAMBDA']   = [wave]
+        t['SPEC']     = [flux]
+        t['ERR']      = [error]
+        t['IVAR']     = [1/error**2] ## 1/sigma^^2 = ivar
+        
+        t.write(folderPrefix+"%s.fits"%(fileName),overwrite=True)
 
-    print("Written file to " + folderPrefix+"%s.fits"%(fileName))
-    
-    
+        print("Written file to " + folderPrefix+"%s.fits"%(fileName))
+        
+        
+    if(format=="ascii"):
+        t = Table([wave,flux,error], names=('LAMBDA', 'SPEC', 'ERR'))
+        t.write(folderPrefix+"%s.txt"%(fileName), format='ascii', overwrite=True)
+        
+
 def removeCosmicRays(data, sigclip=2, objlim=2, readnoise=4, verbose=True):
     """
     Returns cosmic ray cleaned data and mask
@@ -313,6 +321,25 @@ def rotatePoints(x,y, xcenter, ycenter, theta):
 ### Uncategorized functions ###
 ###############################
 
+def printLinelist(z=0, linelist='highz'):
+    """Given a redshift, this function prints the linelist at that redshift
+
+    Args:
+        z (int, optional): _description_. Defaults to 0.
+        linelist (str, optional): _description_. Defaults to 'highz'.
+    """
+    ## Print header
+    print("Line \t Rest Wavelength \t Observed Wavelength")
+    print("-------------------------------------------------")
+    
+    if(linelist=='highz'):
+        for i in linelist_highz.keys():
+            print(i,"\t", linelist_highz[i]['lambda'],"\t", linelist_highz[i]['lambda']*(1+z))
+            
+    if(linelist=='sdss'):
+        for i in linelist_SDSS.keys():
+            print(i,"\t", linelist_SDSS[i]['lambda'],"\t", linelist_SDSS[i]['lambda']*(1+z))
+
 def save_as_pickle(arrayToSave,fileName:str):
     pickle.dump(arrayToSave, open( fileName, "wb" ) )
     print("file saved to: "+fileName)
@@ -368,8 +395,8 @@ def getNestedArrayValue(db, keys):
 def image_array(filename:str):
     return(mpimg.imread(filename))
 
-def display_image(filename:str):
-    return(plt.imshow(mpimg.imread(filename)))
+def display_image(filename:str, origin='lower'):
+    return(plt.imshow(mpimg.imread(filename), origin=origin))
 
 ###########################
 ########## Plots ###############
@@ -507,8 +534,6 @@ def beautifyPlot(kwargs):
         "rc_context":plt.rc_context, 
         "rcdefaults":plt.rcdefaults, 
         "rcsetup":plt.rcsetup, 
-        "re":plt.re, 
-        "register_cmap":plt.register_cmap, 
         "rgrids":plt.rgrids, 
         "savefig":plt.savefig, 
         "sca":plt.sca, 
@@ -597,7 +622,15 @@ def beautifyPlot(kwargs):
         else:
             print(f"Function {key} is not supported!")
 
-
+def createSubplotGrid(nrows, ncols, figsize=(5,5), dpi=100, **kwargs):
+    # Create a figure
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    
+    # Create a GridSpec layout
+    gs = gridspec.GridSpec(nrows, ncols, figure=fig, **kwargs)
+    
+    # Return the GridSpec object
+    return(gs,fig)
 
 
 def plotWithError(x, y, yerr, sigmaLimit = 1, label = 'data', **kwargs):

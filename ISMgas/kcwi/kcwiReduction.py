@@ -68,7 +68,7 @@ END
         ScaleImage(dd.dataCubeMean).plot()
         
 
-def padAndAlign(cubes, newOutputShape, centroids=[]):
+def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'):
     
     results = []
     alignStack = []
@@ -81,7 +81,7 @@ def padAndAlign(cubes, newOutputShape, centroids=[]):
         
         if(len(centroids)==0):
             results.append(newCube)
-            alignStack.append(np.mean(newCube[500:-500, :, :], axis=0))
+            alignStack.append(np.nanmean(newCube[idx[0]:idx[1], :, :], axis=0))
             
         else:
             newAlignCube = np.roll(
@@ -90,7 +90,7 @@ def padAndAlign(cubes, newOutputShape, centroids=[]):
                 axis=(0,2,1)
             )
             results.append(newAlignCube)
-            alignStack.append(np.mean(newAlignCube[500:-500, :, :], axis=0))
+            alignStack.append(np.nanmean(newAlignCube[idx[0]:idx[1] :, :], axis=0))
         
     fits.writeto(
         filename = 'align.fits',
@@ -98,5 +98,7 @@ def padAndAlign(cubes, newOutputShape, centroids=[]):
         overwrite= True
     )
     print("Use align.fits to manually align the datacubes")
-    return(np.mean(results,axis=0))
-    
+    if(method=='mean'):
+        return(np.mean(results,axis=0))
+    elif(method=='individual'):
+        return(results)
