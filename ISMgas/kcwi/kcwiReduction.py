@@ -11,7 +11,8 @@ class kcwiReduxMontage:
         self.dataCube  = None
         
               
-    def combineAndDrizzle(self, drizzleFactor=0.7):
+    def combineAndDrizzle(self, drizzleFactor=0.7, HST=0, **kwargs):
+        
         ### Write a DECaLS like header
         template = f"""
 SIMPLE  =                    T / file does conform to FITS standard
@@ -45,12 +46,21 @@ END
             filename = self.filenames,
         )
 
-        fits.writeto(
-            filename = self.objid + ".fits",
-            data = dd.dataCube,
-            header = fits.getheader(self.filenames[0]),
-            overwrite= True
-        )          
+        if(HST==1):
+            hdrName = kwargs.get('hdrName', 'SCI')
+            fits.writeto(
+                filename = self.objid + ".fits",
+                data = dd.dataCube,
+                header = fits.getheader(self.filenames[0],extname=hdrName),
+                overwrite= True
+            )          
+        else:
+            fits.writeto(
+                filename = self.objid + ".fits",
+                data = dd.dataCube,
+                header = fits.getheader(self.filenames[0]),
+                overwrite= True
+            ) 
 
         ## Project datacube using montage
         cmd = f"mProjectCube -X -z 0.7 {self.objid}.fits  {self.objid}_drizzle.fits  {self.objid}.hdr"
@@ -100,5 +110,8 @@ def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'
     print("Use align.fits to manually align the datacubes")
     if(method=='mean'):
         return(np.mean(results,axis=0))
+    
+    elif(method=='sum'):
+        return(np.sum(results,axis=0))
     elif(method=='individual'):
         return(results)
