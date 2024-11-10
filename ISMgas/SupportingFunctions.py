@@ -349,6 +349,7 @@ def load_pickle(fileName:str):
 
 
 def save_as_JSON(dictToSave, fileName:str):
+    os.makedirs(os.path.dirname(fileName), exist_ok=True) ## This checks to make sure that the directory exists
     with open(fileName, 'w') as fp:
         json.dump(dictToSave, fp)
     print("file saved to: "+fileName)
