@@ -11,7 +11,7 @@ class kcwiReduxMontage:
         self.dataCube  = None
         
               
-    def combineAndDrizzle(self, drizzleFactor=0.7, HST=0, **kwargs):
+    def combineAndDrizzle(self, drizzleFactor=0.7, HST=0, plotting=True, **kwargs):
         
         ### Write a DECaLS like header
         template = f"""
@@ -74,8 +74,8 @@ END
             filename = [f"{self.objid}_drizzle.fits"],
         )
         print(f"Shape: {np.shape(dd.dataCube)}")
-
-        ScaleImage(dd.dataCubeMean).plot()
+        if(plotting):
+            ScaleImage(dd.dataCubeMean).plot()
         
 
 def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'):
