@@ -349,7 +349,7 @@ def preprocessCube(filename, slicer = 'medium'):
 
 
 
-def reproject_and_mosaic(hdus, method='exact', apply_shift=True):
+def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None):
     """
     Reproject multiple 2D images onto a common WCS frame, 
     align them using 2D cross-correlation, and combine into a mosaic.
@@ -377,8 +377,11 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True):
     reproj_func = reproject_exact if method == 'exact' else reproject_interp
 
     # Find optimal WCS
-    mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus)
+    if(resolution is None):
+        mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus)
 
+    elif(resolution is not None):
+        mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus, resolution=resolution)
     # Initialize
     combined_data = np.zeros(mosaic_shape, dtype=float)
     weight_map = np.zeros(mosaic_shape, dtype=float)
