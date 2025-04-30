@@ -535,16 +535,30 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
                 reproj_slice, footprint = reproject_exact(slice_hdu, mosaic_wcs, shape_out=mosaic_shape, parallel=parallel)
             else:
                 reproj_slice, footprint = reproject_interp(slice_hdu, mosaic_wcs, shape_out=mosaic_shape)
+                
 
+            # Shift the reprojected slice spatially based on the calculated shifts (shift_y, shift_x)
+            # The shift is applied using interpolation (order=1), and out-of-bounds areas are filled with 0
             shifted_slice = shift(reproj_slice, shift=(shift_y, shift_x), order=1, mode='constant', cval=0)
+
+            # Similarly, shift the footprint (validity mask) of the reprojected slice
+            # This ensures that the validity of the shifted slice is correctly aligned
             shifted_footprint = shift(footprint, shift=(shift_y, shift_x), order=1, mode='constant', cval=0.0)
 
+            # Identify valid pixels in the shifted footprint (non-zero values indicate valid contributions)
             valid = shifted_footprint > 0
+
+            # Add the shifted slice to the mosaic cube at valid pixel locations
+            # Replace NaN values with zeros to ensure proper addition
             mosaic_cube[i][valid] = np.nan_to_num(mosaic_cube[i][valid]) + np.nan_to_num(shifted_slice[valid])
+
+            # Increment the weight cube to track the number of contributions for each pixel
             weight_cube[i][valid] += 1
 
-    # Normalize by weight
+    # Normalize the mosaic cube by dividing by the weight cube
+    # This ensures that the final mosaic is an average of all contributing slices
+    # Use np.errstate to suppress warnings for division by zero or invalid operations
     with np.errstate(divide='ignore', invalid='ignore'):
         mosaic_cube = np.where(weight_cube > 0, mosaic_cube / weight_cube, np.nan)
-
+    
     return mosaic_cube, mosaic_wcs
