@@ -77,12 +77,13 @@ def save_spectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'
         t.write(folderPrefix+"%s.txt"%(fileName), format='ascii', overwrite=True)
         
 
-def removeCosmicRays(data, sigclip=2, objlim=2, readnoise=4, verbose=True):
+def removeCosmicRays(data, inbkg, sigclip=2, objlim=2, readnoise=4, verbose=True):
     """
     Returns cosmic ray cleaned data and mask
 
     Args:
         data, 
+        inbkg : A pre-determined background image, to be subtracted from indat before running the main detection algorithm. This is used primarily with spectroscopic data, to remove sky lines and the cross-section of an object continuum during iteration, “protecting” them from spurious rejection
         sigclip (int, optional)   : Defaults to 2.
         objlim (int, optional)    : Defaults to 2.
         readnoise (int, optional) : Defaults to 4.
@@ -90,6 +91,7 @@ def removeCosmicRays(data, sigclip=2, objlim=2, readnoise=4, verbose=True):
     """
     mask, clean_data = astroscrappy.detect_cosmics(
         data, 
+        inbkg     = inbkg,
         sigclip   = sigclip,
         objlim    = objlim,
         readnoise = readnoise,
