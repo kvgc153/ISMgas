@@ -77,7 +77,7 @@ def save_spectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'
         t.write(folderPrefix+"%s.txt"%(fileName), format='ascii', overwrite=True)
         
 
-def removeCosmicRays(data, inbkg, sigclip=2, objlim=2, readnoise=4, verbose=True):
+def removeCosmicRays(data, inbkg, sigclip=2, objlim=2, readnoise=4, cleantype='medmask', niter=4,   verbose=True):
     """
     Returns cosmic ray cleaned data and mask
 
@@ -95,6 +95,8 @@ def removeCosmicRays(data, inbkg, sigclip=2, objlim=2, readnoise=4, verbose=True
         sigclip   = sigclip,
         objlim    = objlim,
         readnoise = readnoise,
+        cleantype = cleantype,
+        niter = niter,
         verbose   = verbose
     )    
     

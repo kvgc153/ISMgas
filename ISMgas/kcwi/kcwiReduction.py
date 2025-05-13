@@ -50,7 +50,34 @@ def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'
     elif(method=='individual'):
         return(results)
     
+def kcwi_check_samewave(hdr0, hdr1):
+    """
+    This code is adapted from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
+    Check if the wavelength axes are the same in two headers.
 
+    Args:
+        hdr0 (astropy.io.fits.header) - input header #0
+        hdr1 (astropy.io.fits.header) - input header #1
+
+    Returns:
+        boolean: whether wave axes are the same
+    """
+
+    if hdr0['NAXIS3'] != hdr1['NAXIS3']:
+        # Not the same amount of pixels
+        return False
+
+    wave0 = (np.arange(hdr0['NAXIS3']) - hdr0['CRPIX3'] + 1) * hdr0['CD3_3'] + hdr0['CRVAL3']
+    wave1 = (np.arange(hdr1['NAXIS3']) - hdr1['CRPIX3'] + 1) * hdr1['CD3_3'] + hdr1['CRVAL3']
+
+    if not np.isclose(wave0[0], wave1[0]):
+        # Starting point different
+        return False
+    if not np.isclose(wave0[1] - wave0[0], wave1[1] - wave1[0]):
+        # delta w different
+        return False
+
+    return True
 
 def preprocess(filename, slicer = 'medium'):
     hdu1 = fits.PrimaryHDU()
@@ -228,6 +255,14 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
         raise ValueError("method must be 'exact' or 'interp'.")
 
     n_spectral = hdus[0].data.shape[spectral_axis]
+    
+    
+    ## Step-0 : Check if all cubes have same wavelength axis
+    for i in range(1, len(hdus)):
+        if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
+            raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
+
+
 
     # Use median images for spatial alignment
     spatial_hdus = []
