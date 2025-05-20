@@ -86,16 +86,22 @@ def preprocess(filename, slicer = 'medium'):
     hdr = WCS1.to_fits()[0].header
     
     frame =  fits.getdata(filename)
+    if(slicer=='small'):
+        frame[:,0:29,:] = np.nan
+        frame[:,163:,:] = np.nan
+
+        frame[:,:,:11] = np.nan
+        frame[:,:,32:] = np.nan       
+    
     if(slicer=='medium'):
         # Pad the edges with zeros, to remove noisy data
-        frame[0:17,:] = np.nan
-        frame[-18:,:] = np.nan
         
-        frame[0:17,:] = np.nan
-        frame[-18:,:] = np.nan
-        
-        frame[:,0:18,:] = np.nan
+
+        frame[:,0:15,:] = np.nan
         frame[:,80:,:] = np.nan
+
+        frame[:,:,0:5] = np.nan
+        frame[:,:,-5:] = np.nan
         
     elif(slicer=='large'):
         # Pad the edges with zeros, to remove noisy data
@@ -117,16 +123,22 @@ def preprocessCube(filename, slicer = 'medium'):
     hdr = WCS1.to_fits()[0].header
     
     frame =  fits.getdata(filename)
+    
+    if(slicer=='small'):
+        frame[:,0:29,:] = np.nan
+        frame[:,163:,:] = np.nan
+
+        frame[:,:,:11] = np.nan
+        frame[:,:,32:] = np.nan        
+        
     if(slicer=='medium'):
         # Pad the edges with zeros, to remove noisy data
-        frame[0:17,:] = np.nan
-        frame[-18:,:] = np.nan
-        
-        frame[0:17,:] = np.nan
-        frame[-18:,:] = np.nan
-        
-        frame[:,0:18,:] = np.nan
+
+        frame[:,0:14,:] = np.nan
         frame[:,80:,:] = np.nan
+
+        frame[:,:,0:5] = np.nan
+        frame[:,:,-5:] = np.nan
         
     elif(slicer=='large'):
         # Pad the edges with zeros, to remove noisy data
@@ -225,7 +237,7 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None
     return mosaic_data, mosaic_wcs
 
 
-def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact', apply_shift=True):
+def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact', apply_shift=True, check_samewave=True):
     """
     Reproject multiple data cubes onto a common WCS frame that covers all of them,
     align them spatially using cross-correlation (once), and combine them into a single cube mosaic.
@@ -257,10 +269,11 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
     n_spectral = hdus[0].data.shape[spectral_axis]
     
     
-    ## Step-0 : Check if all cubes have same wavelength axis
-    for i in range(1, len(hdus)):
-        if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
-            raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
+    ## Check if all cubes have same wavelength axis
+    # if check_samewave:
+    #     for i in range(1, len(hdus)):
+    #         if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
+    #             raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
 
 
 
@@ -328,7 +341,8 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
         cube_data = hdu.data
 
         for i in range(n_spectral):
-            print(f"Reprojecting slice {i + 1}/{n_spectral} of datacube-{ndatacube}...")
+            if(i%200==0):
+                print(f"Reprojecting slice {i + 1}/{n_spectral} of datacube-{ndatacube}...")
             if spectral_axis == 0:
                 slice_data = cube_data[i, :, :]
             else:
