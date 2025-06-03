@@ -342,7 +342,7 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
 
         for i in range(n_spectral):
             if(i%200==0):
-                print(f"Reprojecting slice {i + 1}/{n_spectral} of datacube-{ndatacube}...")
+                print(f"Reprojecting slice {i + 1}/{n_spectral} of datacube-{ndatacube+1}...")
             if spectral_axis == 0:
                 slice_data = cube_data[i, :, :]
             else:
