@@ -1,15 +1,16 @@
-from ISMgas.kcwi.kcwiFunctions import *
-from ISMgas.visualization.fits import ScaleImage
-
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.signal import correlate2d
 from scipy.ndimage import shift
+from astropy.io import fits
 from astropy.visualization import ZScaleInterval, ImageNormalize, PercentileInterval
 
 
 from reproject import reproject_exact, reproject_interp
 from reproject.mosaicking import find_optimal_celestial_wcs
+
+from ISMgas.kcwi.kcwiFunctions import *
+from ISMgas.visualization.fits import ScaleImage
 
 
 def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'):
@@ -155,7 +156,7 @@ def preprocessCube(filename, slicer = 'medium'):
 
 
 
-def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None):
+def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None, return_shifted_frames=False):
     """
     Reproject multiple 2D images onto a common WCS frame, 
     align them using 2D cross-correlation, and combine into a mosaic.
@@ -200,6 +201,9 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None
     valid = ~np.isnan(ref_data)
     combined_data[valid] += ref_data[valid]
     weight_map[valid] += 1
+    
+    shifted_frames  = []
+    shifted_frames.append(ref_data)  # Store the reference frame
 
     for hdu in hdus[1:]:
         # Reproject the target image
@@ -224,20 +228,27 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None
             
         else:
             shifted_data = target_data
+            
+            
 
         # Combine
         valid = ~np.isnan(shifted_data)
         combined_data[valid] += shifted_data[valid]
         weight_map[valid] += 1
+        
+        shifted_frames.append(shifted_data)  # Store the shifted frame
 
     # Normalize
     with np.errstate(divide='ignore', invalid='ignore'):
         mosaic_data = np.where(weight_map > 0, combined_data / weight_map, np.nan)
 
-    return mosaic_data, mosaic_wcs
+    if(return_shifted_frames):
+        return shifted_frames, mosaic_wcs
+    else:
+        return mosaic_data, mosaic_wcs
 
 
-def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact', apply_shift=True, check_samewave=True):
+def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, method='exact', apply_shift=True, check_samewave=True):
     """
     Reproject multiple data cubes onto a common WCS frame that covers all of them,
     align them spatially using cross-correlation (once), and combine them into a single cube mosaic.
@@ -246,6 +257,8 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
     ----------
     hdus : list of astropy.io.fits.PrimaryHDU or ImageHDU
         List of 3D data cube HDUs with WCS.
+    resolution : astropy Quantity
+        Dictates what resolution the frames must be projected to.
     spectral_axis : int, optional
         Axis index corresponding to the spectral dimension (default=0).
     parallel : bool, optional
@@ -283,7 +296,7 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
         median_image = np.nanmedian(hdu.data, axis=spectral_axis)
         spatial_hdus.append(fits.ImageHDU(median_image, header=hdu.header))
 
-    mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(spatial_hdus)
+    mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(spatial_hdus, resolution=resolution)
 
     # Compute shifts using median images
     print("Computing shifts between datacubes...")
@@ -346,6 +359,7 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
             if spectral_axis == 0:
                 slice_data = cube_data[i, :, :]
             else:
+                ## placeholder for more general implmentation.
                 raise ValueError("Unsupported spectral_axis value. Must be 0.")
 
             slice_hdu = fits.ImageHDU(slice_data, header=hdu.header)
@@ -378,6 +392,16 @@ def reproject_and_mosaic_cube(hdus, spectral_axis=0, parallel=1, method='exact',
     # This ensures that the final mosaic is an average of all contributing slices
     # Use np.errstate to suppress warnings for division by zero or invalid operations
     with np.errstate(divide='ignore', invalid='ignore'):
-        mosaic_cube = np.where(weight_cube > 0, mosaic_cube / weight_cube, np.nan)
-    
+        # Create an empty array of the same shape as mosaic_cube to hold the result
+        result = np.empty_like(mosaic_cube)
+
+        # For all elements where weight_cube > 0, divide mosaic_cube by weight_cube
+        result[weight_cube > 0] = mosaic_cube[weight_cube > 0] / weight_cube[weight_cube > 0]
+
+        # For all elements where weight_cube <= 0, set result to NaN
+        result[weight_cube <= 0] = np.nan
+
+        # Assign the final result back to mosaic_cube
+        mosaic_cube = result        
+
     return mosaic_cube, mosaic_wcs
