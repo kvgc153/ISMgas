@@ -4,7 +4,7 @@ from scipy.signal import correlate2d
 from scipy.ndimage import shift
 from astropy.io import fits
 from astropy.visualization import ZScaleInterval, ImageNormalize, PercentileInterval
-
+import astropy.units as u
 
 from reproject import reproject_exact, reproject_interp
 from reproject.mosaicking import find_optimal_celestial_wcs
@@ -14,7 +14,6 @@ from ISMgas.visualization.fits import ScaleImage
 
 
 def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'):
-    
     results = []
     alignStack = []
         
@@ -110,7 +109,7 @@ def preprocess(filename, slicer = 'medium'):
         frame[:,:,:2] = np.nan
         frame[:,:,25:] = np.nan
     
-    hdu1.data  = np.nanmedian(frame,axis=0)
+    hdu1.data  = np.nanmedian(frame[500:-500,:,:],axis=0)
     hdu1.header = hdr
 
     return(hdu1)
@@ -129,12 +128,11 @@ def preprocessCube(filename, slicer = 'medium'):
         frame[:,163:,:] = np.nan
 
         frame[:,:,:11] = np.nan
-        frame[:,:,32:] = np.nan        
-        
+        frame[:,:,32:] = np.nan       
+    
     if(slicer=='medium'):
         # Pad the edges with zeros, to remove noisy data
-
-        frame[:,0:14,:] = np.nan
+        frame[:,0:15,:] = np.nan
         frame[:,80:,:] = np.nan
 
         frame[:,:,0:5] = np.nan
@@ -147,7 +145,6 @@ def preprocessCube(filename, slicer = 'medium'):
 
         frame[:,:,:2] = np.nan
         frame[:,:,25:] = np.nan
-    
     hdu1.data   = frame
     hdu1.header = hdr
 
@@ -155,24 +152,10 @@ def preprocessCube(filename, slicer = 'medium'):
 
 
 
-def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None, return_shifted_frames=False):
+def reproject_and_mosaic(hdus, method='exact', apply_shift=False,  resolution=None):
     """
     Reproject multiple 2D images onto a common WCS frame, 
     align them using 2D cross-correlation, and combine into a mosaic.
-
-    Parameters
-    ----------
-    hdus : list of astropy.io.fits.PrimaryHDU or ImageHDU
-        List of 2D image HDUs with WCS.
-    method : str, optional
-        Reprojection method: 'exact' (slow, accurate) or 'interp' (fast, approximate).
-
-    Returns
-    -------
-    mosaic_data : np.ndarray
-        The combined image data.
-    mosaic_wcs : astropy.wcs.WCS
-        The WCS object of the mosaic.
     """
     if len(hdus) == 0:
         raise ValueError("No HDUs provided.")
@@ -188,20 +171,16 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None
 
     elif(resolution is not None):
         mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus, resolution=resolution)
-    # Initialize
-    combined_data = np.zeros(mosaic_shape, dtype=float)
-    weight_map = np.zeros(mosaic_shape, dtype=float)
+        
 
     # Choose the first image as reference
     ref_hdu = hdus[0]
     ref_data, _ = reproj_func(ref_hdu, mosaic_wcs, shape_out=mosaic_shape)
-
-    # Add the reference image
-    valid = ~np.isnan(ref_data)
-    combined_data[valid] += ref_data[valid]
-    weight_map[valid] += 1
     
     shifted_frames  = []
+    shifts = [(0.0, 0.0)]  # Store shifts for each frame
+
+    
     shifted_frames.append(ref_data)  # Store the reference frame
 
     for hdu in hdus[1:]:
@@ -217,60 +196,30 @@ def reproject_and_mosaic(hdus, method='exact', apply_shift=True, resolution=None
             corr = correlate2d(
                 np.nan_to_num(ref_data) * valid_mask, 
                 np.nan_to_num(target_data) * valid_mask,
-                mode="same"
+                mode="full"
             )
 
             shift_y, shift_x = np.array(np.unravel_index(np.argmax(corr), corr.shape)) - np.array(corr.shape) // 2
 
             # Apply the shift
             shifted_data = shift(target_data, shift=(shift_y, shift_x), order=1, mode='constant', cval=np.nan)
+            shifts.append((shift_y, shift_x))  # Store the shift
+            
             
         else:
             shifted_data = target_data
+            shifts.append((0.0, 0.0))  # No shift applied
             
-            
-
-        # Combine
-        valid = ~np.isnan(shifted_data)
-        combined_data[valid] += shifted_data[valid]
-        weight_map[valid] += 1
-        
+       
         shifted_frames.append(shifted_data)  # Store the shifted frame
 
     # Normalize
-    with np.errstate(divide='ignore', invalid='ignore'):
-        mosaic_data = np.where(weight_map > 0, combined_data / weight_map, np.nan)
+    return shifted_frames, shifts, mosaic_wcs, mosaic_shape
 
-    if(return_shifted_frames):
-        return shifted_frames, mosaic_wcs
-    else:
-        return mosaic_data, mosaic_wcs
-
-
-def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, method='exact', apply_shift=True, check_samewave=True):
+def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, parallel=False, method='exact', shifts=[], check_samewave=True):
     """
     Reproject multiple data cubes onto a common WCS frame that covers all of them,
     align them spatially using cross-correlation (once), and combine them into a single cube mosaic.
-
-    Parameters
-    ----------
-    hdus : list of astropy.io.fits.PrimaryHDU or ImageHDU
-        List of 3D data cube HDUs with WCS.
-    resolution : astropy Quantity
-        Dictates what resolution the frames must be projected to.
-    spectral_axis : int, optional
-        Axis index corresponding to the spectral dimension (default=0).
-    parallel : bool, optional
-        Whether to run reproject_exact in parallel (ignored for reproject_interp).
-    method : str, optional
-        'exact' for reproject_exact or 'interp' for reproject_interp.
-
-    Returns
-    -------
-    mosaic_cube : np.ndarray
-        The combined 3D data cube (spectral, y, x).
-    mosaic_wcs : astropy.wcs.WCS
-        The WCS object of the mosaic (spatial only; spectral axis is preserved separately).
     """
     if len(hdus) == 0:
         raise ValueError("No HDUs provided.")
@@ -278,9 +227,6 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
     if method not in ['exact', 'interp']:
         raise ValueError("method must be 'exact' or 'interp'.")
 
-    n_spectral = hdus[0].data.shape[spectral_axis]
-    
-    
     ## Check if all cubes have same wavelength axis
     print("Checking if all cubes have the same wavelength axis...")
     if check_samewave:
@@ -288,72 +234,21 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
             if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
                 raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
 
-
-
-    # Use median images for spatial alignment
-    spatial_hdus = []
-    for hdu in hdus:
-        median_image = np.nanmedian(hdu.data, axis=spectral_axis)
-        wcsDrop = WCS(hdu.header).dropaxis(2)  # Drop the spectral axis for spatial WCS
-        hdu.header = wcsDrop.to_fits()[0].header       
-        spatial_hdus.append(fits.ImageHDU(median_image, header=hdu.header))
-
-    mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(spatial_hdus, resolution=resolution)
-    
-    # Compute shifts using median images
-    print("Computing shifts between datacubes...")
-    ref_median = np.nanmedian(hdus[0].data, axis=spectral_axis)
-    ref_hdu = fits.ImageHDU(ref_median, header=hdus[0].header)
-    
-    if method == 'exact':
-        ref_data, _ = reproject_exact(ref_hdu, mosaic_wcs, shape_out=mosaic_shape, parallel=parallel)
-    else:
-        ref_data, _ = reproject_interp(ref_hdu, mosaic_wcs, shape_out=mosaic_shape)
-
-    shifts = [(0.0, 0.0)]
-
-    for hdu in hdus[1:]:
-        median_image = np.nanmedian(hdu.data, axis=spectral_axis)
-        target_hdu = fits.ImageHDU(median_image, header=hdu.header)
-
-        if method == 'exact':
-            target_data, _ = reproject_exact(target_hdu, mosaic_wcs, shape_out=mosaic_shape, parallel=parallel)
-        else:
-            target_data, _ = reproject_interp(target_hdu, mosaic_wcs, shape_out=mosaic_shape)
-
-        valid_mask = (~np.isnan(ref_data)) & (~np.isnan(target_data))
-        if np.sum(valid_mask) == 0:
-            shifts.append((0.0, 0.0))
-            continue
-
-        if(apply_shift):
-            # Perform 2D cross-correlation between the reference and target data
-            # Multiply by valid_mask to ensure only valid regions are considered
-            corr = correlate2d(
-                np.nan_to_num(ref_data) * valid_mask,
-                np.nan_to_num(target_data) * valid_mask,
-                mode="same"
-            )
-
-            # Find the indices of the maximum correlation value
-            # Subtract half the correlation shape to calculate the shift
-            shift_y, shift_x = (
-                np.array(np.unravel_index(np.argmax(corr), corr.shape)) - np.array(corr.shape) // 2
-            )
-            # Append the calculated shift (shift_y, shift_x) to the shifts list
-            shifts.append((shift_y, shift_x))
-            
-        else:
-            # If no shift is to be applied, append a default shift of (0.0, 0.0)
-            shifts.append((0.0, 0.0))
+    ## Check if len(shifts) == len(hdus
+    if len(shifts) != len(hdus):
+        raise ValueError("The length of shifts must match the number of HDUs provided.")
 
     # Initialize output cubes
+    n_spectral = hdus[0].data.shape[spectral_axis]
     mosaic_cube = np.full((n_spectral, *mosaic_shape), np.nan)
     weight_cube = np.zeros((n_spectral, *mosaic_shape), dtype=float)
 
     # Now apply shifts and reproject full cubes
     for ndatacube, (hdu, (shift_y, shift_x)) in enumerate(zip(hdus, shifts)):
         cube_data = hdu.data
+        
+        wcsDrop = WCS(hdu.header).dropaxis(2)  # Drop the spectral axis from WCS
+        hdu.header = wcsDrop.to_fits()[0].header  # Update the header 
 
         for i in range(n_spectral):
             if(i%200==0):
@@ -364,6 +259,7 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
                 ## placeholder for more general implmentation.
                 raise ValueError("Unsupported spectral_axis value. Must be 0.")
 
+ 
             slice_hdu = fits.ImageHDU(slice_data, header=hdu.header)
 
             if method == 'exact':
@@ -392,18 +288,83 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
 
     # Normalize the mosaic cube by dividing by the weight cube
     # This ensures that the final mosaic is an average of all contributing slices
-    # Use np.errstate to suppress warnings for division by zero or invalid operations
     with np.errstate(divide='ignore', invalid='ignore'):
-        # Create an empty array of the same shape as mosaic_cube to hold the result
         result = np.empty_like(mosaic_cube)
-
+        
         # For all elements where weight_cube > 0, divide mosaic_cube by weight_cube
         result[weight_cube > 0] = mosaic_cube[weight_cube > 0] / weight_cube[weight_cube > 0]
 
         # For all elements where weight_cube <= 0, set result to NaN
         result[weight_cube <= 0] = np.nan
 
-        # Assign the final result back to mosaic_cube
         mosaic_cube = result        
 
-    return mosaic_cube, mosaic_wcs
+    return mosaic_cube
+
+class kcwiRedux:
+    def __init__(self, filenames, objid, slicer, resolution):
+        self.filenames = filenames
+        self.objid = objid
+        self.slicer = slicer
+        self.resolution = resolution
+
+    def step1(self):
+        hdus = [preprocess(f, slicer=self.slicer) for f in self.filenames]
+
+        shifted_frames, shifts, mosaic_wcs, mosaic_shape = reproject_and_mosaic(
+            hdus, apply_shift=True, resolution=self.resolution
+        )
+        hdu = fits.PrimaryHDU()
+        hdu.data = shifted_frames
+        hdu.header = mosaic_wcs.to_fits()[0].header
+        hdu.writeto(f"{self.objid}_shifted.fits", overwrite=True)
+
+        f = open(f"{self.objid}_{self.slicer}_shifts.list", "w" )
+        for i, shift in enumerate(shifts):
+            f.write(f"{shift}\n")
+        f.close()
+        print("Saved shifts to file:", f"{self.objid}_{self.slicer}_shifts.list")
+        
+        try:
+            import os
+            os.system(f"ds9 {self.objid}_shifted.fits")
+        except Exception as e:
+            print(f"Error opening ds9: {e}")
+        
+        self.shifts = shifts
+        self.mosaic_wcs = mosaic_wcs
+        self.mosaic_shape = mosaic_shape
+
+    def step2(self):
+        hdus = []
+        for filename in self.filenames:
+            hdus.append(preprocessCube(filename, slicer=self.slicer))
+
+        mosaic_data = reproject_and_mosaic_cube(
+            hdus=hdus, shifts=self.shifts, mosaic_wcs=self.mosaic_wcs, mosaic_shape=self.mosaic_shape
+        )
+
+        plt.figure(dpi=200)
+        ScaleImage(np.nanmedian(mosaic_data, axis=0)).plot()
+        plt.show()
+
+        # Save to datacube
+        hdu = fits.PrimaryHDU()
+        hdu.data = mosaic_data
+        hdu.header = self.mosaic_wcs.to_fits()[0].header
+        hdrFoo = fits.getheader(self.filenames[0])
+
+        hdu.header["BUNIT"] = hdrFoo['BUNIT']
+        
+        hdu.header['CRVAL3'] = hdrFoo['CRVAL3']
+        hdu.header['CRPIX3'] = hdrFoo['CRPIX3']
+        hdu.header['CD3_3'] = hdrFoo['CD3_3']
+        hdu.header['CUNIT3'] = hdrFoo['CUNIT3']
+        
+
+        hdu.header["COMMENT"] = f"Files used: {','.join(self.filenames)}"
+        hdu.header["COMMENT"] = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
+        hdu.header["COMMENT"] = "ISMGas version: v1.0.3"
+
+        hdu.writeto(f"{self.objid}_{self.slicer}_combined.fits", overwrite=True)
+        print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits")
