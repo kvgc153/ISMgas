@@ -53,7 +53,7 @@ def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'
     
 def kcwi_check_samewave(hdr0, hdr1):
     """
-    This code is adapted from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
+    This code is from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
     Check if the wavelength axes are the same in two headers.
 
     Args:
@@ -96,8 +96,6 @@ def preprocess(filename, slicer = 'medium'):
     
     if(slicer=='medium'):
         # Pad the edges with zeros, to remove noisy data
-        
-
         frame[:,0:15,:] = np.nan
         frame[:,80:,:] = np.nan
 
@@ -119,10 +117,11 @@ def preprocess(filename, slicer = 'medium'):
 
 def preprocessCube(filename, slicer = 'medium'):
     hdu1 = fits.PrimaryHDU()
-    WCS1 = WCS(fits.getheader(filename))
-    WCS1 = WCS1.dropaxis(2)
-    hdr = WCS1.to_fits()[0].header
+    # WCS1 = WCS(fits.getheader(filename))
+    # WCS1 = WCS1.dropaxis(2)
+    # hdr = WCS1.to_fits()[0].header
     
+    hdr   = fits.getheader(filename) 
     frame =  fits.getdata(filename)
     
     if(slicer=='small'):
@@ -149,7 +148,7 @@ def preprocessCube(filename, slicer = 'medium'):
         frame[:,:,:2] = np.nan
         frame[:,:,25:] = np.nan
     
-    hdu1.data  = frame
+    hdu1.data   = frame
     hdu1.header = hdr
 
     return(hdu1)
@@ -283,10 +282,11 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
     
     
     ## Check if all cubes have same wavelength axis
-    # if check_samewave:
-    #     for i in range(1, len(hdus)):
-    #         if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
-    #             raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
+    print("Checking if all cubes have the same wavelength axis...")
+    if check_samewave:
+        for i in range(1, len(hdus)):
+            if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
+                raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
 
 
 
@@ -294,10 +294,12 @@ def reproject_and_mosaic_cube(hdus, resolution, spectral_axis=0, parallel=1, met
     spatial_hdus = []
     for hdu in hdus:
         median_image = np.nanmedian(hdu.data, axis=spectral_axis)
+        wcsDrop = WCS(hdu.header).dropaxis(2)  # Drop the spectral axis for spatial WCS
+        hdu.header = wcsDrop.to_fits()[0].header       
         spatial_hdus.append(fits.ImageHDU(median_image, header=hdu.header))
 
     mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(spatial_hdus, resolution=resolution)
-
+    
     # Compute shifts using median images
     print("Computing shifts between datacubes...")
     ref_median = np.nanmedian(hdus[0].data, axis=spectral_axis)
