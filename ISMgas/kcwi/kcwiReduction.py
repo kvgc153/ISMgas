@@ -341,14 +341,15 @@ class kcwiRedux:
         hdu.data = mosaic_data
         hdu.header = self.mosaic_wcs.to_fits()[0].header
         hdrFoo = fits.getheader(self.filenames[0])
+        hdrFooComments = hdrFoo.comments
 
-        hdu.header["BUNIT"] = hdrFoo['BUNIT']
-        
-        hdu.header['CRVAL3'] = hdrFoo['CRVAL3']
-        hdu.header['CRPIX3'] = hdrFoo['CRPIX3']
-        hdu.header['CDELT3'] = hdrFoo['CD3_3']
-        hdu.header['CUNIT3'] = hdrFoo['CUNIT3']
-        hdu.header['CTYPE3'] = hdrFoo['CTYPE3']
+        hdu.header['WCSAXES'] = 3 ## Note that tha mosaic_wcs has only 2 dimensions.
+        hdu.header["BUNIT"]  = (hdrFoo['BUNIT'],hdrFooComments['BUNIT'])
+        hdu.header['CRVAL3'] = (hdrFoo['CRVAL3'],hdrFooComments['CRVAL3'])
+        hdu.header['CRPIX3'] = (hdrFoo['CRPIX3'],hdrFooComments['CRPIX3'])
+        hdu.header['CDELT3'] = (hdrFoo['CD3_3'],hdrFooComments['CD3_3'])
+        hdu.header['CUNIT3'] = (hdrFoo['CUNIT3'],hdrFooComments['CUNIT3'])
+        hdu.header['CTYPE3'] = (hdrFoo['CTYPE3'],hdrFooComments['CTYPE3'])
                 
         hdu.header.remove('LONPOLE')
         hdu.header.remove('LATPOLE')
