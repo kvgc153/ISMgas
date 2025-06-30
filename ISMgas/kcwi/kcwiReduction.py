@@ -346,9 +346,10 @@ class kcwiRedux:
         
         hdu.header['CRVAL3'] = hdrFoo['CRVAL3']
         hdu.header['CRPIX3'] = hdrFoo['CRPIX3']
-        hdu.header['CD3_3'] = hdrFoo['CD3_3']
+        hdu.header['CDELT3'] = hdrFoo['CD3_3']
         hdu.header['CUNIT3'] = hdrFoo['CUNIT3']
-        
+        hdu.header['CTYPE3'] = hdrFoo['CTYPE3']
+                
         hdu.header.remove('LONPOLE')
         hdu.header.remove('LATPOLE')
         
@@ -357,4 +358,4 @@ class kcwiRedux:
         hdu.header["COMMENT"] = "ISMGas version: v1.0.3"
 
         hdu.writeto(f"{self.objid}_{self.slicer}_combined.fits", overwrite=True)
-        print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits")
+        print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits") 
