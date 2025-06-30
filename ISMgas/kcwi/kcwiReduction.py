@@ -139,7 +139,8 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mo
     elif(resolution is not None):
         mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus, resolution=resolution)
         
-    # Choose the first image as reference
+    # Choose the first image as reference -- this is the DECaLS/SDSS/Panstaars image.
+    
     ref_hdu     = hdus[0]
     ref_data, _ = reproj_func(ref_hdu, mosaic_wcs, shape_out=mosaic_shape)
     
@@ -266,19 +267,34 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
 
     return mosaic_cube
 
+from ISMgas.GalaxyProperties import GalaxyProperties
 class kcwiRedux:
-    def __init__(self, filenames, objid, slicer, resolution,autocorrelate=False,correlate_mode='full'):
+    def __init__(self, objid, ra, dec, resolution, size, filenames, slicer, autocorrelate=True,correlate_mode='full', grab=False):
         self.filenames = filenames
         self.objid = objid
         self.slicer = slicer
         self.resolution = resolution
+        
+        gg = GalaxyProperties(
+            ra= ra,
+            dec = dec,
+            objid = objid + "_DECALS"
+        )
+        gg.decalsFitsAndPng(grab=grab, pixscale = resolution.value, size=size)
 
         ## Autocorrelate and auto align all the datcubes -- great for quick redux.
         self.autocorrelate = autocorrelate
         self.correlate_mode = correlate_mode
 
     def step1(self):
-        hdus = [preprocess(f, slicer=self.slicer) for f in self.filenames]
+        hduRef = fits.open( self.objid + "_DECALS.fits")
+        
+        hduRef[0].header = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
+        hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
+        
+        hdus = [hduRef[0]]
+        for f in self.filenames:
+            hdus.append(preprocess(f, slicer=self.slicer))
 
         shifted_frames, shifts, mosaic_wcs, mosaic_shape = reproject_and_mosaic(
             hdus, 
@@ -303,7 +319,7 @@ class kcwiRedux:
         except Exception as e:
             print(f"Error opening ds9: {e}")
         
-        self.shifts = shifts
+        self.shifts = shifts[1:]
         self.mosaic_wcs = mosaic_wcs
         self.mosaic_shape = mosaic_shape
 
@@ -333,7 +349,9 @@ class kcwiRedux:
         hdu.header['CD3_3'] = hdrFoo['CD3_3']
         hdu.header['CUNIT3'] = hdrFoo['CUNIT3']
         
-
+        hdu.header.remove('LONPOLE')
+        hdu.header.remove('LATPOLE')
+        
         hdu.header["COMMENT"] = f"Files used: {','.join(self.filenames)}"
         hdu.header["COMMENT"] = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
         hdu.header["COMMENT"] = "ISMGas version: v1.0.3"
