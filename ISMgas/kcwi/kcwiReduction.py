@@ -1,83 +1,12 @@
-from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
 from scipy.signal import correlate2d
 from scipy.ndimage import shift
 from astropy.io import fits
-from astropy.visualization import ZScaleInterval, ImageNormalize, PercentileInterval
-import astropy.units as u
 
 from reproject import reproject_exact, reproject_interp
 from reproject.mosaicking import find_optimal_celestial_wcs
 
-from ISMgas.kcwi.kcwiFunctions import *
 from ISMgas.visualization.fits import ScaleImage
-
-
-def padAndAlign(cubes, newOutputShape, centroids=[],idx=[500,-500],method='mean'):
-    results = []
-    alignStack = []
-        
-    for i in range(len(cubes)):
-        
-        newCube = np.zeros(newOutputShape)
-        newCube[:,0:cubes[i].dataCube.shape[1], 0:cubes[i].dataCube.shape[2]] = cubes[i].dataCube
-
-        
-        if(len(centroids)==0):
-            results.append(newCube)
-            alignStack.append(np.nanmean(newCube[idx[0]:idx[1], :, :], axis=0))
-            
-        else:
-            newAlignCube = np.roll(
-                newCube, 
-                [0, -(centroids[i][0] - centroids[0][0]), -(centroids[i][1]- centroids[0][1])],
-                axis=(0,2,1)
-            )
-            results.append(newAlignCube)
-            alignStack.append(np.nanmean(newAlignCube[idx[0]:idx[1] :, :], axis=0))
-        
-    fits.writeto(
-        filename = 'align.fits',
-        data = np.array(alignStack),
-        overwrite= True
-    )
-    print("Use align.fits to manually align the datacubes")
-    if(method=='mean'):
-        return(np.mean(results,axis=0))
-    
-    elif(method=='sum'):
-        return(np.sum(results,axis=0))
-    elif(method=='individual'):
-        return(results)
-    
-def kcwi_check_samewave(hdr0, hdr1):
-    """
-    This code is from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
-    Check if the wavelength axes are the same in two headers.
-
-    Args:
-        hdr0 (astropy.io.fits.header) - input header #0
-        hdr1 (astropy.io.fits.header) - input header #1
-
-    Returns:
-        boolean: whether wave axes are the same
-    """
-
-    if hdr0['NAXIS3'] != hdr1['NAXIS3']:
-        # Not the same amount of pixels
-        return False
-
-    wave0 = (np.arange(hdr0['NAXIS3']) - hdr0['CRPIX3'] + 1) * hdr0['CD3_3'] + hdr0['CRVAL3']
-    wave1 = (np.arange(hdr1['NAXIS3']) - hdr1['CRPIX3'] + 1) * hdr1['CD3_3'] + hdr1['CRVAL3']
-
-    if not np.isclose(wave0[0], wave1[0]):
-        # Starting point different
-        return False
-    if not np.isclose(wave0[1] - wave0[0], wave1[1] - wave1[0]):
-        # delta w different
-        return False
-
-    return True
+from ISMgas.GalaxyProperties import GalaxyProperties
 
 def preprocess(filename, slicer = 'medium', cube = False):
     frame =  fits.getdata(filename)
@@ -118,6 +47,35 @@ def preprocess(filename, slicer = 'medium', cube = False):
         hdu1.header = hdr
 
     return(hdu1)
+
+def kcwi_check_samewave(hdr0, hdr1):
+    """
+    This code is from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
+    Check if the wavelength axes are the same in two headers.
+
+    Args:
+        hdr0 (astropy.io.fits.header) - input header #0
+        hdr1 (astropy.io.fits.header) - input header #1
+
+    Returns:
+        boolean: whether wave axes are the same
+    """
+
+    if hdr0['NAXIS3'] != hdr1['NAXIS3']:
+        # Not the same amount of pixels
+        return False
+
+    wave0 = (np.arange(hdr0['NAXIS3']) - hdr0['CRPIX3'] + 1) * hdr0['CD3_3'] + hdr0['CRVAL3']
+    wave1 = (np.arange(hdr1['NAXIS3']) - hdr1['CRPIX3'] + 1) * hdr1['CD3_3'] + hdr1['CRVAL3']
+
+    if not np.isclose(wave0[0], wave1[0]):
+        # Starting point different
+        return False
+    if not np.isclose(wave0[1] - wave0[0], wave1[1] - wave1[0]):
+        # delta w different
+        return False
+
+    return True
 
 def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mode='full',  resolution=None):
     """
@@ -205,7 +163,7 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
     ## End checks ## 
 
     # Initialize output cubes
-    n_spectral = hdus[0].data.shape[spectral_axis]
+    n_spectral  = hdus[0].data.shape[spectral_axis]
     mosaic_cube = np.full((n_spectral, *mosaic_shape), np.nan)
     weight_cube = np.zeros((n_spectral, *mosaic_shape), dtype=float)
 
@@ -267,7 +225,6 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
 
     return mosaic_cube
 
-from ISMgas.GalaxyProperties import GalaxyProperties
 class kcwiRedux:
     def __init__(self, objid, ra, dec, resolution, size, filenames, slicer, autocorrelate=True,correlate_mode='full', grab=False):
         self.filenames = filenames
