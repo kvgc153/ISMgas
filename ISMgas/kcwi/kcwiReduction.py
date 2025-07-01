@@ -1,6 +1,9 @@
 from scipy.signal import correlate2d
 from scipy.ndimage import shift
+import numpy as np
 from astropy.io import fits
+from astropy.wcs import WCS
+import matplotlib.pyplot as plt
 
 from reproject import reproject_exact, reproject_interp
 from reproject.mosaicking import find_optimal_celestial_wcs
@@ -19,8 +22,8 @@ def preprocess(filename, slicer = 'medium', cube = False):
         frame[:,:,32:] = np.nan       
     
     if(slicer=='medium'):
-        frame[:,0:15,:] = np.nan
-        frame[:,80:,:] = np.nan
+        frame[:,0:16,:] = np.nan
+        frame[:,79:,:] = np.nan
 
         frame[:,:,0:5] = np.nan
         frame[:,:,-5:] = np.nan
