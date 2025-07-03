@@ -80,7 +80,7 @@ def kcwi_check_samewave(hdr0, hdr1):
 
     return True
 
-def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mode='full',  resolution=None):
+def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, autocorrelate_maskfile= None, correlate_mode='full',  resolution=None):
     """
     Reproject multiple 2D images onto a common WCS frame, 
     align them using 2D cross-correlation, and combine into a mosaic.
@@ -89,6 +89,11 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mo
         raise ValueError("No HDUs provided.")
     if method not in ['exact', 'interp']:
         raise ValueError("method must be 'exact' or 'interp'.")
+    ## If a autocorrelate mask is provided,  make userMask to apply later
+    if(autocorrelate_maskfile is not None):
+        userMask = fits.getdata(autocorrelate_maskfile )
+        userMask = userMask.astype(float)
+        userMask[userMask==0] = np.nan
 
     # Choose the reprojection function
     reproj_func = reproject_exact if method == 'exact' else reproject_interp
@@ -101,7 +106,6 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mo
         mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus, resolution=resolution)
         
     # Choose the first image as reference -- this is the DECaLS/SDSS/Panstaars image.
-    
     ref_hdu     = hdus[0]
     ref_data, _ = reproj_func(ref_hdu, mosaic_wcs, shape_out=mosaic_shape)
     
@@ -115,7 +119,11 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, correlate_mo
         target_data, _ = reproj_func(hdu, mosaic_wcs, shape_out=mosaic_shape)
 
         # Cross-correlation to find shift
-        valid_mask = (~np.isnan(ref_data)) & (~np.isnan(target_data))
+        if(autocorrelate_maskfile is not None):
+            valid_mask = (~np.isnan(ref_data)) & (~np.isnan(target_data)) & (~np.isnan(userMask))
+        else:
+            valid_mask = (~np.isnan(ref_data)) & (~np.isnan(target_data))
+
         if np.sum(valid_mask) == 0:
             continue  # Skip if no overlap
         
@@ -229,7 +237,7 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
     return mosaic_cube
 
 class kcwiRedux:
-    def __init__(self, objid, ra, dec, resolution, size, filenames, slicer, autocorrelate=True,correlate_mode='full', grab=False):
+    def __init__(self, objid, ra, dec, resolution, size, filenames, slicer, autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', grab=False):
         self.filenames = filenames
         self.objid = objid
         self.slicer = slicer
@@ -244,22 +252,31 @@ class kcwiRedux:
 
         ## Autocorrelate and auto align all the datcubes -- great for quick redux.
         self.autocorrelate = autocorrelate
+        self.autocorrelate_maskfile = autocorrelate_maskfile
         self.correlate_mode = correlate_mode
 
-    def step1(self):
+    def step1(self, refCombine='mean'):
         hduRef = fits.open( self.objid + "_DECALS.fits")
         
         hduRef[0].header = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
-        hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
+        
+        ## By default we will use the mean of the DECaLS image 
+        if(refCombine=='mean'):
+            hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
+        
+        ## But if for some reason that fails (too bright targets in the red). then you can pass an integer to specify the band
+        if(type(refCombine)==type(1)):
+            hduRef[0].data = hduRef[0].data[refCombine]
         
         hdus = [hduRef[0]]
         for f in self.filenames:
             hdus.append(preprocess(f, slicer=self.slicer))
-
+            
         shifted_frames, shifts, mosaic_wcs, mosaic_shape = reproject_and_mosaic(
             hdus, 
             resolution=self.resolution, 
             autocorrelate = self.autocorrelate,
+            autocorrelate_maskfile = self.autocorrelate_maskfile,
             correlate_mode= self.correlate_mode
         )
         hdu = fits.PrimaryHDU()
