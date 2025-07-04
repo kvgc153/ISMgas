@@ -10,6 +10,8 @@ from reproject.mosaicking import find_optimal_celestial_wcs
 
 from ISMgas.visualization.fits import ScaleImage
 from ISMgas.GalaxyProperties import GalaxyProperties
+from ISMgas.kcwi.kcwiFunctions import kcwiAnalysis
+
 
 def preprocess(filename, slicer = 'medium', cube = False):
     frame =  fits.getdata(filename)
@@ -254,6 +256,32 @@ class kcwiRedux:
         self.autocorrelate = autocorrelate
         self.autocorrelate_maskfile = autocorrelate_maskfile
         self.correlate_mode = correlate_mode
+        
+        
+        ## Show user color image of all the datacubes that are going to be reduced 
+        self.showWhiteLightImage()
+        
+    def showWhiteLightImage(self):
+        nrow = 4 
+        ncol = len(self.filenames)//nrow + 1 
+        
+        plt.figure(figsize=(nrow*4, ncol*6), dpi = 200)
+
+    
+        for count,name in enumerate(self.filenames):
+            plt.subplot(ncol,nrow,count+1)
+            ScaleImage(
+                np.nanmedian(fits.getdata(name)[500:-500,:,:], axis=0),
+                cmap = 'gray'
+            ).plot()
+    
+            plt.title(name.split("/")[-1], fontsize=10)
+            plt.axis('off')
+            plt.tight_layout()
+        
+        plt.savefig(self.objid+"_inputDatacubes.png")
+        plt.show()
+        
 
     def step1(self, refCombine='mean'):
         hduRef = fits.open( self.objid + "_DECALS.fits")

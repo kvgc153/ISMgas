@@ -1013,7 +1013,7 @@ def save_to_MARZ(wav, spec, sigma, filename):
     hdu_list.writeto(f'{filename}.fits', overwrite=True)
     
     
-def load_QFitsview_spectra(filename, plot = True):
+def load_QFitsview_spectra(filename, plot = True,color='black',label='plot'):
     """Returns wav and spec from a qfitsview spectra file
 
     Args:
@@ -1025,12 +1025,12 @@ def load_QFitsview_spectra(filename, plot = True):
     wav = t['Wave']
     spec = t['Flux']
     if(plot):
-        plt.figure(dpi=150,figsize=(12,5))
         plt.plot(
             t['Wave'],
             t['Flux'],
             drawstyle='steps-mid',
-            color='black')
+            color=color,
+            label=label)
     return(wav, spec)
     
     
