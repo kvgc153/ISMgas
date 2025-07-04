@@ -249,26 +249,24 @@ def getSkyModel(flux, mask, plotting=False, verbose=False):
     }
     model = Model(model_dict)
 
-    mask = mask.astype('float')
-    mask[mask==0] = np.nan
 
     obj_flux = mask*flux
 
     xdata,ydata = np.where(~np.isnan(obj_flux))  ## Ensures that the masked out region is not used for fitting
-    zdata       = obj_flux[xdata,ydata]
-    # mask_nonzero =  flux!=0
+    zdata = obj_flux[xdata,ydata]
+    mask_nonzero =  flux!=0
 
     # Perform the fit
-    fit        = Fit(model, x=xdata, y=ydata, z=zdata)
+    fit = Fit(model, x=xdata, y=ydata, z=zdata)
     fit_result = fit.execute()
 
     zfit = model(x=xdata, y=ydata, **fit_result.params)
     if verbose:
         print(fit_result)
 
-    sky_model = np.zeros(obj_flux.shape)*np.nan
+    sky_model = np.zeros(obj_flux.shape)
     sky_model[xdata,ydata] = zfit
-    # sky_model = sky_model* mask_nonzero
+    sky_model = sky_model* mask_nonzero
     
     if(plotting):
 
@@ -291,8 +289,6 @@ def getSkyModel(flux, mask, plotting=False, verbose=False):
         z = (flux*mask)[x,y]
         plt.hist(z,label='Before sky correction',alpha=0.6)
 
-
-        x,y = np.where((flux-sky_model)*mask!=0)
         z = ((flux-sky_model)*mask)[x,y]
         plt.hist(z,label='After sky correction',alpha = 0.6)
         plt.legend()
@@ -302,10 +298,9 @@ def getSkyModel(flux, mask, plotting=False, verbose=False):
 
     xdata,ydata = np.where(~np.isnan(obj_flux))  
     zfit = model(x=xdata, y=ydata, **fit_result.params)
-    
-    sky_model              = np.zeros(obj_flux.shape)*np.nan
+    sky_model = np.zeros(obj_flux.shape)
     sky_model[xdata,ydata] = zfit
-    # sky_model = sky_model* mask_nonzero        
+    sky_model = sky_model* mask_nonzero        
     
     return(sky_model)
 
