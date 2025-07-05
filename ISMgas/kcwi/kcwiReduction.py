@@ -3,6 +3,7 @@ from scipy.ndimage import shift
 import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
+from astropy.visualization import ImageNormalize, ZScaleInterval
 import matplotlib.pyplot as plt
 
 from reproject import reproject_exact, reproject_interp
@@ -303,6 +304,81 @@ def getSkyModel(flux, mask, plotting=False, verbose=False):
     sky_model = sky_model* mask_nonzero        
     
     return(sky_model)
+
+def makeErrorSpectra(maskFile, hdrFile, xIdx, yIdx, xlim=[3300,5000], ylim=[0,0.02]):
+    mask = fits.getdata(maskFile)
+    hdr = fits.getheader(hdrFile)
+    
+    
+    dd = kcwiAnalysis(
+        filename = [hdrFile],
+    )
+    plt.figure(dpi=100)
+    plt.imshow(dd.dataCubeMean, origin='lower', norm= ImageNormalize(dd.dataCubeMean, interval=ZScaleInterval()))
+    plt.imshow(mask, origin='lower', alpha = 0.4)
+    plt.show()
+
+    
+    y,x = np.where(mask==1)
+    sky_values = []
+    for i in range(len(x)):
+        sky_values.append(dd.dataCube[:, y[i], x[i]])
+        
+    sky_values = np.asarray(sky_values)
+    print(sky_values.shape)
+    
+    MEAN = np.median(sky_values, axis=0)
+    STD = np.std(sky_values, axis=0)
+    VAR = 1/STD**2
+
+
+    plt.figure(dpi=250)
+    
+    from ISMgas.SupportingFunctions import plotWithError
+    plotWithError(    
+        (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CDELT3'] + hdr['CRVAL3'],
+        MEAN, 
+        STD
+    )
+    plt.axhline([0], color='black')
+    plt.xlim(xlim)
+    plt.ylim([-5*np.nanmedian(STD,axis=0), 5*np.nanmedian(STD,axis=0)])
+    plt.show()
+
+
+    plt.figure(dpi=250)
+    plt.plot(    
+        (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CDELT3'] + hdr['CRVAL3'],
+        STD
+    )
+    plt.axhline([0], color='black')
+    plt.xlim(xlim)
+    plt.ylim(0,5*np.nanmedian(STD,axis=0))
+    plt.ylabel("$\sigma$")
+    plt.xlabel("$\lambda(\AA)$")
+    plt.show()
+
+
+    plt.figure(dpi=250)
+    plt.plot(
+        (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CDELT3'] + hdr['CRVAL3'],
+        dd.dataCube[:, yIdx, xIdx],
+        color = 'black',
+        linewidth = 0.3
+    )
+    
+    plt.fill_between(
+        x =        (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CDELT3'] + hdr['CRVAL3'],
+        y1 = dd.dataCube[:,yIdx, xIdx] - STD, 
+        y2 =  dd.dataCube[ :,yIdx, xIdx] + STD,
+        color = 'gray', 
+        alpha = 0.4
+    )
+    
+    plt.ylim(ylim)
+    plt.xlim(xlim)
+
+    return STD
 
 class kcwiRedux:
     def __init__(self, 
