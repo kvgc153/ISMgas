@@ -15,9 +15,16 @@ from symfit import Poly, variables, parameters, Model, Fit, cos,GreaterThan,Less
 from ISMgas.visualization.fits import ScaleImage
 from ISMgas.GalaxyProperties import GalaxyProperties
 from ISMgas.kcwi.kcwiFunctions import kcwiAnalysis
-
+from ISMgas.SupportingFunctions import plotWithError
 
 def preprocess(filename, slicer = 'medium', cube = False):
+    """Pad edges of the raw KCWI datacube/image before reducing the data. 
+
+    Args:
+        filename (string): Filename of datacube/image to preprocess
+        slicer (str, optional): Which KCWI slicer did you use?. Defaults to 'medium'.
+        cube (bool, optional): Is the file a datacube or just an image?. Defaults to False.
+    """
     frame =  fits.getdata(filename)
     
     if(slicer=='small'):
@@ -242,49 +249,53 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
     return mosaic_cube
 
 def getSkyModel(flux, mask, plotting=False, verbose=False):
+    """Given a 2D flux map and a mask, this function will return a sky model map using a 2D first-order polynomial
+
+    Args:
+        flux (numpy array): Flux
+        mask (numpy array): Mask 
+        plotting (bool, optional): Plots the before and after sky subtraction. Defaults to False.
+        verbose (bool, optional): Prints the fit result. Defaults to False.
+    """
     x, y, z                = variables('x, y, z')
-    c0,c1, c2,c3,c4,c5,c6 = parameters('c0,c1,c2,c3,c4,c5,c6')
+    c0,c1, c2,c3,c4,c5,c6  = parameters('c0,c1,c2,c3,c4,c5,c6')
+    
     # Make a polynomial. Note the `as_expr` to make it symfit friendly.
     model_dict = {
         z: Poly( {(0, 0): c0,(1, 0): c1, (0, 1): c2,(1, 1): c3}, x ,y).as_expr()
     }
     model = Model(model_dict)
 
-
     obj_flux = mask*flux
-
-    xdata,ydata = np.where(~np.isnan(obj_flux))  ## Ensures that the masked out region is not used for fitting
-    zdata = obj_flux[xdata,ydata]
-    mask_nonzero =  flux!=0
+    
+    yd,xd           = np.where(~np.isnan(obj_flux))
+    zdata           = obj_flux[yd,xd]  # Removed the values from the edges of the datacube which are padded in preprocess() from fitting
+    mask_nonzero    = flux!=0
 
     # Perform the fit
-    fit = Fit(model, x=xdata, y=ydata, z=zdata)
-    fit_result = fit.execute()
+    fit           = Fit(model, x=yd, y=xd, z=zdata)
+    fit_result    = fit.execute()
 
-    zfit = model(x=xdata, y=ydata, **fit_result.params)
+    zfit = model(x=yd, y=xd, **fit_result.params)
     if verbose:
         print(fit_result)
 
-    sky_model = np.zeros(obj_flux.shape)
-    sky_model[xdata,ydata] = zfit
-    sky_model = sky_model* mask_nonzero
+    sky_model           = np.zeros(obj_flux.shape)
+    sky_model[yd,xd]    = zfit
+    sky_model           = sky_model * mask_nonzero
     
     if(plotting):
-
         plt.figure(figsize = (15,7), dpi= 400)
         plt.subplot(1,3,1)
         plt.imshow(flux*mask,origin='lower',cmap = 'RdBu')
         plt.title("Sky from data")
         plt.colorbar()
-
-
+        
         plt.subplot(1,3,2)
         plt.imshow(sky_model,origin='lower',cmap = 'RdBu')
         plt.title("Model of the sky - First order fit")
         plt.colorbar()
 
-
-        #################################################
         plt.subplot(1,3,3)
         x,y = np.where(flux*mask!=0)
         z = (flux*mask)[x,y]
@@ -296,18 +307,32 @@ def getSkyModel(flux, mask, plotting=False, verbose=False):
         
         plt.tight_layout()
 
-
-    xdata,ydata = np.where(~np.isnan(obj_flux))  
-    zfit = model(x=xdata, y=ydata, **fit_result.params)
-    sky_model = np.zeros(obj_flux.shape)
-    sky_model[xdata,ydata] = zfit
-    sky_model = sky_model* mask_nonzero        
+    # I don't remember why we have to redo this
+    yd,xd               = np.where(~np.isnan(obj_flux))
+    zfit                = model(x=yd, y=xd, **fit_result.params)
+    sky_model           = np.zeros(obj_flux.shape)
+    sky_model[yd,xd]    = zfit
+    sky_model           = sky_model * mask_nonzero
     
     return(sky_model)
 
 def makeErrorSpectra(maskFile, hdrFile, xIdx, yIdx, xlim=[3300,5000], ylim=[0,0.02]):
-    mask = fits.getdata(maskFile)
-    hdr = fits.getheader(hdrFile)
+    """Used to make an error spectra for a fully reduced KCWI datacube. 
+    (need better documentation)
+
+    Args:
+        maskFile (_type_): _description_
+        hdrFile (_type_): _description_
+        xIdx (_type_): _description_
+        yIdx (_type_): _description_
+        xlim (list, optional): _description_. Defaults to [3300,5000].
+        ylim (list, optional): _description_. Defaults to [0,0.02].
+
+    Returns:
+        _type_: _description_
+    """
+    mask    = fits.getdata(maskFile)
+    hdr     = fits.getheader(hdrFile)
     
     
     dd = kcwiAnalysis(
@@ -318,23 +343,18 @@ def makeErrorSpectra(maskFile, hdrFile, xIdx, yIdx, xlim=[3300,5000], ylim=[0,0.
     plt.imshow(mask, origin='lower', alpha = 0.4)
     plt.show()
 
-    
-    y,x = np.where(mask==1)
-    sky_values = []
+    y,x           = np.where(mask==1)
+    sky_values    = []
     for i in range(len(x)):
         sky_values.append(dd.dataCube[:, y[i], x[i]])
         
     sky_values = np.asarray(sky_values)
-    print(sky_values.shape)
     
-    MEAN = np.median(sky_values, axis=0)
-    STD = np.std(sky_values, axis=0)
-    VAR = 1/STD**2
-
+    MEAN    = np.median(sky_values, axis=0)
+    STD     = np.std(sky_values, axis=0)
+    # VAR = 1/STD**2
 
     plt.figure(dpi=250)
-    
-    from ISMgas.SupportingFunctions import plotWithError
     plotWithError(    
         (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CDELT3'] + hdr['CRVAL3'],
         MEAN, 
@@ -387,14 +407,12 @@ class kcwiRedux:
                  filenames, slicer, 
                  grab=False,
                  autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', 
-                 skymaskFilenames = None
-        ):
-        self.filenames = filenames
-        self.skymaskFilenames = skymaskFilenames
-        
-        self.objid = objid
-        self.slicer = slicer
-        self.resolution = resolution
+                 skymaskFilenames = None):
+        self.filenames          = filenames
+        self.skymaskFilenames   = skymaskFilenames
+        self.objid              = objid
+        self.slicer             = slicer
+        self.resolution         = resolution
         
         gg = GalaxyProperties(
             ra= ra,
@@ -404,11 +422,10 @@ class kcwiRedux:
         gg.decalsFitsAndPng(grab=grab, pixscale = resolution.value, size=size)
 
         ## Autocorrelate and auto align all the datcubes -- great for quick redux.
-        self.autocorrelate = autocorrelate
-        self.autocorrelate_maskfile = autocorrelate_maskfile
-        self.correlate_mode = correlate_mode
-        
-        
+        self.autocorrelate            = autocorrelate
+        self.autocorrelate_maskfile   = autocorrelate_maskfile
+        self.correlate_mode           = correlate_mode
+             
         ## Show user color image of all the datacubes that are going to be reduced 
         self.showWhiteLightImage()
         
@@ -417,8 +434,6 @@ class kcwiRedux:
         ncol = len(self.filenames)//nrow + 1 
         
         plt.figure(figsize=(nrow*4, ncol*6), dpi = 200)
-
-    
         for count,name in enumerate(self.filenames):
             plt.subplot(ncol,nrow,count+1)
             ScaleImage(
@@ -435,20 +450,18 @@ class kcwiRedux:
         
 
     def step1(self, refCombine='mean'):
-        hduRef = fits.open( self.objid + "_DECALS.fits")
-        
-        hduRef[0].header = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
+        hduRef              = fits.open( self.objid + "_DECALS.fits")
+        hduRef[0].header    = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
         
         ## By default we will use the mean of the DECaLS image 
+        ## But if for some reason that fails (too bright targets in the red). then you can pass an integer to specify the band
         if(refCombine=='mean'):
             hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
-        
-        ## But if for some reason that fails (too bright targets in the red). then you can pass an integer to specify the band
         if(type(refCombine)==type(1)):
             hduRef[0].data = hduRef[0].data[refCombine]
         
-        hdus = [hduRef[0]]
-        for f in self.filenames:
+        hdus = [hduRef[0]] # Put the reference image first
+        for f in self.filenames: 
             hdus.append(preprocess(f, slicer=self.slicer))
             
         shifted_frames, shifts, mosaic_wcs, mosaic_shape = reproject_and_mosaic(
@@ -458,9 +471,10 @@ class kcwiRedux:
             autocorrelate_maskfile = self.autocorrelate_maskfile,
             correlate_mode= self.correlate_mode
         )
-        hdu = fits.PrimaryHDU()
-        hdu.data = shifted_frames
-        hdu.header = mosaic_wcs.to_fits()[0].header
+        
+        hdu         = fits.PrimaryHDU()
+        hdu.data    = shifted_frames
+        hdu.header  = mosaic_wcs.to_fits()[0].header
         hdu.writeto(f"{self.objid}_shifted.fits", overwrite=True)
 
         f = open(f"{self.objid}_{self.slicer}_shifts.list", "w" )
@@ -475,12 +489,12 @@ class kcwiRedux:
         except Exception as e:
             print(f"Error opening ds9: {e}")
         
-        self.shifts = shifts[1:]
-        self.mosaic_wcs = mosaic_wcs
+        self.shifts       = shifts[1:] ## DOn't need the shifts for the reference DECaLS/Panstarrs image in the array.
+        self.mosaic_wcs   = mosaic_wcs
         self.mosaic_shape = mosaic_shape
         
 
-    def removeSkyGradient(self,hdus, med_pixs = 24):
+    def removeSkyGradient(self, hdus, med_pixs = 24):
         if(len(hdus)!=len(self.skymaskFilenames)):
             raise ValueError("Number of skymasks does not match the number of filenames")
         
@@ -491,20 +505,20 @@ class kcwiRedux:
             
             print(f"Removing sky gradients for datacube-{hduNum+1}")
             
-            for i in np.arange(med_pixs, data_foo.shape[0] -med_pixs, 1): ## Runing sky subtraction
+            for i in np.arange(med_pixs, data_foo.shape[0] -med_pixs, 1): ## Running sky gradient subtraction
                 skyFit[i,:,:] = getSkyModel(
                     np.nanmedian(data_foo[i-med_pixs:i+med_pixs+1,:,:], axis=0),
                     mask
                 )
             hdus[hduNum].data = data_foo - skyFit         
             
-            ## Store the fits 
-            hduSky = fits.PrimaryHDU()
-            hduSky.data = skyFit
-            hduSky.header["COMMENT"] = "Removed sky gradient in each datacube using 2D first-order polynomial"
+            ## Store the fits -- Do not use this sky model for anything important. This is only for inspection
+            hduSky                      = fits.PrimaryHDU()
+            hduSky.data                 = skyFit
+            hduSky.header["COMMENT"]    = "Removed sky gradient in each datacube using 2D first-order polynomial"
             hduSky.writeto(self.skymaskFilenames[hduNum].replace(".fits", "_skyfits.fits"), overwrite=True)
             
-            ## Save the fits for central wavelength regions
+            ## Save the fits for central wavelength regions to show to the user how the fits are doing
             skyFit[i,:,:] = getSkyModel(
                 np.nanmedian(data_foo[data_foo.shape[0]//2-med_pixs:data_foo.shape[0]//2+med_pixs+1,:,:], axis=0),
                 mask,
@@ -525,7 +539,10 @@ class kcwiRedux:
             hdus = self.removeSkyGradient(hdus)
 
         mosaic_data = reproject_and_mosaic_cube(
-            hdus=hdus, shifts=self.shifts, mosaic_wcs=self.mosaic_wcs, mosaic_shape=self.mosaic_shape
+            hdus=hdus, 
+            shifts=self.shifts, 
+            mosaic_wcs=self.mosaic_wcs, 
+            mosaic_shape=self.mosaic_shape
         )
 
         plt.figure(dpi=200)
@@ -539,24 +556,24 @@ class kcwiRedux:
         hdrFoo = fits.getheader(self.filenames[0])
         hdrFooComments = hdrFoo.comments
 
-        hdu.header['WCSAXES'] = 3 ## Note that tha mosaic_wcs has only 2 dimensions.
-        hdu.header["BUNIT"]  = (hdrFoo['BUNIT'],hdrFooComments['BUNIT'])
-        hdu.header['CRVAL3'] = (hdrFoo['CRVAL3'],hdrFooComments['CRVAL3'])
-        hdu.header['CRPIX3'] = (hdrFoo['CRPIX3'],hdrFooComments['CRPIX3'])
-        hdu.header['CDELT3'] = (hdrFoo['CD3_3'],hdrFooComments['CD3_3'])
-        hdu.header['CUNIT3'] = (hdrFoo['CUNIT3'],hdrFooComments['CUNIT3'])
-        hdu.header['CTYPE3'] = (hdrFoo['CTYPE3'],hdrFooComments['CTYPE3'])
+        hdu.header['WCSAXES']   = 3 ## Note that tha mosaic_wcs has only 2 dimensions.
+        hdu.header["BUNIT"]     = (hdrFoo['BUNIT'],hdrFooComments['BUNIT'])
+        hdu.header['CRVAL3']    = (hdrFoo['CRVAL3'],hdrFooComments['CRVAL3'])
+        hdu.header['CRPIX3']    = (hdrFoo['CRPIX3'],hdrFooComments['CRPIX3'])
+        hdu.header['CDELT3']    = (hdrFoo['CD3_3'],hdrFooComments['CD3_3'])
+        hdu.header['CUNIT3']    = (hdrFoo['CUNIT3'],hdrFooComments['CUNIT3'])
+        hdu.header['CTYPE3']    = (hdrFoo['CTYPE3'],hdrFooComments['CTYPE3'])
                 
         hdu.header.remove('LONPOLE')
         hdu.header.remove('LATPOLE')
         
-        hdu.header["COMMENT"] = f"Files used: {','.join(self.filenames)}"
-        hdu.header["COMMENT"] = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
-        hdu.header["COMMENT"] = "ISMGas version: v1.0.3"
+        hdu.header["COMMENT"]   = f"Files used: {','.join(self.filenames)}"
+        hdu.header["COMMENT"]   = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
+        hdu.header["COMMENT"]   = "ISMGas version: v1.0.3"
         
         if(self.skymaskFilenames is not None):
-            hdu.header["COMMENT"] = "Removed sky gradient in each datacube using 2D first-order polynomial"
-            hdu.header["COMMENT"] = f"Sky mask files used: {','.join(self.skymaskFilenames)}"
+            hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"
+            hdu.header["COMMENT"]   = f"Sky mask files used: {','.join(self.skymaskFilenames)}"
 
         hdu.writeto(f"{self.objid}_{self.slicer}_combined.fits", overwrite=True)
         print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits") 
