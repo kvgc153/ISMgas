@@ -1012,6 +1012,28 @@ def save_to_MARZ(wav, spec, sigma, filename):
 
     hdu_list.writeto(f'{filename}.fits', overwrite=True)
     
+    
+def load_QFitsview_spectra(filename, plot = True,color='black',label='plot'):
+    """Returns wav and spec from a qfitsview spectra file
+
+    Args:
+        filename (_type_): _description_
+    """
+    from astropy.io import ascii
+
+    t = ascii.read(filename, names = ["Wave", "Flux"])
+    wav = t['Wave']
+    spec = t['Flux']
+    if(plot):
+        plt.plot(
+            t['Wave'],
+            t['Flux'],
+            drawstyle='steps-mid',
+            color=color,
+            label=label)
+    return(wav, spec)
+    
+    
 def save_to_QFitsview(wav, spec, sigma, filename):
     """Saves (wav,spec, sigma) from a spectra in a format that QFitsview recognizes.
     UNDER CONSTRUCTION

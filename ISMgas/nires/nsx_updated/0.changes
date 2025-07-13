@@ -1,0 +1,20 @@
+
+
+Version 2018-05-31 :
+The nsx program now adjusts an overall (row) shift in the echelle orders on the detector.
+(Note that a shift of about 23 rows was seen between 2018-01-20 and 2018-03-04.)
+
+Version 2018-08-31 :
+
+-- I have created maps of abnormal high(hot) and low pixels using darks and flat field
+   exposures.  See the files 'nsx/cal/HotPix.fits' and 'nsx/cal/LowPix.fits' to see where
+   these pixels are located.  These pixels are replaced by interpolations before the spectra
+   are extracted.  You can prevent this by using the '-NoHotClean'  and '-NoClean' options. 
+
+-- I have added a larger tolerance (+/- 200 columns) for a skyline shift.  The previous
+   version assumed only a maximum of a few column shift.  
+
+-- I have also added flat field corrections which are automatic unless the '-NoFlat' 
+   option is used.  This uses a flat from March 2018 (the program does not yet accept 
+   user flat fields).
+

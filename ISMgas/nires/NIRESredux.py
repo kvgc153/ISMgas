@@ -28,69 +28,71 @@ import shutil
 ## slit : Gives the min and max coordinates of the slit in a given order. ##
 #################
 
-wav_sol_folder    = 'calib_files/'
-wav_sol_files     = [
-                 'skylines-sp3.csv',
-                 'skylines-sp4.csv',
-                 'skylines-sp5.csv',
-                 'skylines-sp6.csv',
-                 'skylines-sp7.csv'
-                 ]
-wav_minmax    = [
-              [24693.851,18900.119],
-              [18550.272,14203.881],
-              [14860.462,11380.506],
-              [12401.956,9495.88],
-              [10646.087,9408.54] 
-             ]
 
-slitLengthpxs     = 112
-offset            = slitLengthpxs + 86
+if __name__ == "__main__":
+    wav_sol_folder    = 'calib_files/'
+    wav_sol_files     = [
+                    'skylines-sp3.csv',
+                    'skylines-sp4.csv',
+                    'skylines-sp5.csv',
+                    'skylines-sp6.csv',
+                    'skylines-sp7.csv'
+                    ]
+    wav_minmax    = [
+                [24693.851,18900.119],
+                [18550.272,14203.881],
+                [14860.462,11380.506],
+                [12401.956,9495.88],
+                [10646.087,9408.54] 
+                ]
 
-NIRES_calib_configs = {
-    'sp3': {
-        'slit'            : [802,802 + slitLengthpxs],
-        'wav_solution'    : 'skylines-sp3.csv',
-        'wav_minmax'      : [24693.851,18900.119],
-        'offsetVals'      : [0,1,2,3,4]
-    },
-    'sp4': {
-        'slit'            : [602,602 + slitLengthpxs],
-        'wav_solution'    : 'skylines-sp4.csv',
-        'wav_minmax'      : [18550.272,14203.881],
-        'offsetVals'      : [-1,0,1,2,3]
-        
-    },
-    'sp5': {
-        'slit'            : [402,402 + slitLengthpxs],
-        'wav_solution'    : 'skylines-sp5.csv',
-        'wav_minmax'      : [14860.462,11380.506],
-        'offsetVals'      : [-2,-1,0,1,2]
-        
-    },
-    'sp6': {
-        'slit'            : [202,202 + slitLengthpxs],
-        'wav_solution'    : 'skylines-sp6.csv',
-        'wav_minmax'      : [12401.956,9495.88]  ,
-        'offsetVals'      : [-3,-2,-1,0,1]
-        
-    },
-    'sp7': {
-        'slit'            : [2, 2 + slitLengthpxs] ,
-        'wav_solution'    : 'skylines-sp7.csv',
-        'wav_minmax'      : [10646.087,9408.54] ,
-        'offsetVals'      : [-4,-3,-2,-1,0]
-    },
-}
+    slitLengthpxs     = 112
+    offset            = slitLengthpxs + 86
 
-####################
-## Read wave maps ##
-####################
-wavelength_scale              = fits.getdata(NIRES_wavemap_file)
-wavelength_scale              = wavelength_scale.astype(int)
+    NIRES_calib_configs = {
+        'sp3': {
+            'slit'            : [802,802 + slitLengthpxs],
+            'wav_solution'    : 'skylines-sp3.csv',
+            'wav_minmax'      : [24693.851,18900.119],
+            'offsetVals'      : [0,1,2,3,4]
+        },
+        'sp4': {
+            'slit'            : [602,602 + slitLengthpxs],
+            'wav_solution'    : 'skylines-sp4.csv',
+            'wav_minmax'      : [18550.272,14203.881],
+            'offsetVals'      : [-1,0,1,2,3]
+            
+        },
+        'sp5': {
+            'slit'            : [402,402 + slitLengthpxs],
+            'wav_solution'    : 'skylines-sp5.csv',
+            'wav_minmax'      : [14860.462,11380.506],
+            'offsetVals'      : [-2,-1,0,1,2]
+            
+        },
+        'sp6': {
+            'slit'            : [202,202 + slitLengthpxs],
+            'wav_solution'    : 'skylines-sp6.csv',
+            'wav_minmax'      : [12401.956,9495.88]  ,
+            'offsetVals'      : [-3,-2,-1,0,1]
+            
+        },
+        'sp7': {
+            'slit'            : [2, 2 + slitLengthpxs] ,
+            'wav_solution'    : 'skylines-sp7.csv',
+            'wav_minmax'      : [10646.087,9408.54] ,
+            'offsetVals'      : [-4,-3,-2,-1,0]
+        },
+    }
 
-wavelength_scale_corrected    = fits.getdata(NIRES_wavemap_file_corrected)
-wavelength_scale_corrected    = wavelength_scale_corrected.astype(int)
+    ####################
+    ## Read wave maps ##
+    ####################
+    wavelength_scale              = fits.getdata(NIRES_wavemap_file)
+    wavelength_scale              = wavelength_scale.astype(int)
+
+    wavelength_scale_corrected    = fits.getdata(NIRES_wavemap_file_corrected)
+    wavelength_scale_corrected    = wavelength_scale_corrected.astype(int)
 
 
 

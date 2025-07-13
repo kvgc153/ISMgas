@@ -1,0 +1,115 @@
+
+Installing NIRES Spectral Extraction program 
+---------------------------------------------------
+
+1) Un-tar the nsx.tar file.
+
+2) Run 'make'.   ( Make changes to Makefile if needed. )
+
+3) Set two environment variables:
+      NSXDIR (location of nsx.tar directory)
+      NSXOUT (location of program output, default will be
+              in the current directory)
+
+4) The executable 'nsx' should exist.
+
+
+
+Running NIRES Spectral Extraction program 
+---------------------------------------------------
+
+You can create a listing of your raw NIRES FITS data files like this:
+    ls *.fits > file.ls
+    nsx file.ls list=nsx.tbl
+
+The current version allows for both manual and automatic spectral extraction.
+The profiles for each echelle order are calibrated on a single arcsecond scale.
+It is assumed the arcseconds per pixel is 0.123 (may change later with better
+calibration.)
+
+If you run nsx on a single exposure:
+
+  nsx s170215_0040.fits
+
+it will produce a profile table 's170215_0040-pro.tbl' and then stop.
+You will also get individual profile tables for each order.  The files will
+be numbered from red to blue (3, 4, 5, 6, and 7) = (K, H, J, z/J, and z).
+
+You can examine the profile and choose arcsecond ranges for the object
+window and the background window(s).
+
+  nsx s170215_0040.fits sp=3,6 bk=1,2 bk=8,12
+
+You can also allow the program to automatically choose the object and
+background windows:
+
+  nsx s170215_0040.fits -autox
+
+In either case, you will get 5 spectral tables for each order.
+
+You will also get a log file ( s170215_0040.log ) and a table of the
+night skyline residuals ( s170215_0040-skyres.tbl ).
+
+There is also a corrected image ( s170215_0040-corrected.fits ) where
+the echelle curvature has been made horizontal and the slant across the
+slit window has been made vertical.
+
+There is also a background fit image ( s170215_0040-bck.fits ).
+
+You can also use a 'B image' which will be subtracted off the primary
+'A image' exposure.  This usually produces better skyline subtraction
+in the final spectrum, but increases the error and usually decreases
+the available background window.
+
+  nsx s170215_0040.fits s170215_0041.fits  sp=3,6 bk=1,2 bk=8,12
+
+Note that the resulting spectral files will have the root
+'s170215_0040-0041'.  (You will need to reverse the order of the
+FITS filenames to get the spectrum for the other exposure.)
+
+
+
+Description of Output Files
+---------------------------
+
+-pro#.tbl : profile data.
+
+Columns: 
+         arcsec : arcsecond scale from lower edge of echelle order
+         median : median flux value
+         average: average flux value
+         obj    : object window mask (1 = object region)
+         bck    : background window mask (1 = background region)
+         row    : relative row pixel value from lower edge
+
+
+-sp#.tbl  : spectral data.
+
+Columns: 
+         wave        : wavelength of pixel in microns
+         object      : summation of counts in object window (with background subtraction)
+         error       : 1 sigma error of 'object'
+         backgnd     : background averaged over pixels in background window(s)
+         sky         : background averaged over pixels in object window
+         col         : column number on CCD
+         row         : row position on CCD of center of object window
+         angstrom    : wavelength of pixel in Angstroms
+         disp        : dispersion in Angstroms per pixel
+
+
+
+Future Changes
+--------------
+
+  Flat field correction.
+  
+  Hot pixel correction.
+  
+  Atmospheric absorption correction.
+  
+  Flux calibration.
+  
+  More documentation.
+  
+  
+Last modified: 2018 February 27

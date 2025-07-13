@@ -14,4 +14,6 @@ pip install lmfit &&\
 pip install symfit &&\
 pip install regions &&\
 pip install beautifyPlot &&\
+pip install regions &&\
+pip install reproject &&\
 echo "END: ISMgas environment setup complete" 

@@ -2,6 +2,10 @@
 
 ```python
 from ISMgas.fitting.DoubleGaussian import DoubleGaussian
+
+## Note on xdata, ydata, ydataerr -- Remove any nans and inf from the dataset before using it for fitting
+## The code does not check this and will result in bad fits/ errors.
+
 dg = DoubleGaussian(
     x    = xdata,
     y    = ydata, 
