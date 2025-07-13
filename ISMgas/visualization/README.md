@@ -15,7 +15,7 @@ s = ScaleImage(
 
 s.plot()
 ```
-Currently supports only 'percentile' but more options will be added shortly.
+Currently supports only 'percentile' which works for most use cases but more options will be added in the future.
 
 Example notebook -- [Link](examples/example-visualization.ipynb)
 
