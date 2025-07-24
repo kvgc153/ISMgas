@@ -408,6 +408,21 @@ class kcwiRedux:
                  grab=False,
                  autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', 
                  skymaskFilenames = None):
+        """
+        Args:
+            objid (string): Unique object ID
+            ra (float): _RA
+            dec (float): DEC
+            resolution (arcseconds): Resolution of final datacube in arcseconds
+            size (_type_): _description_
+            filenames (_type_): _description_
+            slicer (_type_): _description_
+            grab (bool, optional): _description_. Defaults to False.
+            autocorrelate (bool, optional): _description_. Defaults to True.
+            autocorrelate_maskfile (_type_, optional): _description_. Defaults to None.
+            correlate_mode (str, optional): _description_. Defaults to 'full'.
+            skymaskFilenames (_type_, optional): _description_. Defaults to None.
+        """
         self.filenames          = filenames
         self.skymaskFilenames   = skymaskFilenames
         self.objid              = objid
@@ -532,17 +547,23 @@ class kcwiRedux:
     def step2(self):
         hdus = []
         for filename in self.filenames:
-            hdus.append(preprocess(filename, slicer=self.slicer, cube=True))
+            processedHDU = preprocess(filename, slicer=self.slicer, cube=True) ## FLAM16 units -- default KCWI units
+            # But reproject requires data to be in surface brightness units
+            dx    = np.sqrt(processedHDU.header['CD1_1']**2+processedHDU.header['CD2_1']**2)*3600.
+            dy    = np.sqrt(processedHDU.header['CD1_2']**2+processedHDU.header['CD2_2']**2)*3600.
+            area  = dx*dy
+            processedHDU.data = processedHDU.data/area
+            hdus.append(processedHDU) ## FLAM16/arcsec^2 units
             
         ## If user has provided sky frames to use, we will use them to remove any sky gradients introduced from the IDL reduction
         if(self.skymaskFilenames is not None):
             hdus = self.removeSkyGradient(hdus)
 
         mosaic_data = reproject_and_mosaic_cube(
-            hdus=hdus, 
-            shifts=self.shifts, 
-            mosaic_wcs=self.mosaic_wcs, 
-            mosaic_shape=self.mosaic_shape
+            hdus          = hdus,
+            shifts        = self.shifts,
+            mosaic_wcs    = self.mosaic_wcs,
+            mosaic_shape  = self.mosaic_shape
         )
 
         plt.figure(dpi=200)
@@ -557,7 +578,8 @@ class kcwiRedux:
         hdrFooComments = hdrFoo.comments
 
         hdu.header['WCSAXES']   = 3 ## Note that tha mosaic_wcs has only 2 dimensions.
-        hdu.header["BUNIT"]     = (hdrFoo['BUNIT'],hdrFooComments['BUNIT'])
+        # hdu.header["BUNIT"]     = (hdrFoo['BUNIT'],hdrFooComments['BUNIT'])
+        hdu.header["BUNIT"]     = "FLAM16/arcsec^2"
         hdu.header['CRVAL3']    = (hdrFoo['CRVAL3'],hdrFooComments['CRVAL3'])
         hdu.header['CRPIX3']    = (hdrFoo['CRPIX3'],hdrFooComments['CRPIX3'])
         hdu.header['CDELT3']    = (hdrFoo['CD3_3'],hdrFooComments['CD3_3'])
@@ -569,7 +591,7 @@ class kcwiRedux:
         
         hdu.header["COMMENT"]   = f"Files used: {','.join(self.filenames)}"
         hdu.header["COMMENT"]   = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
-        hdu.header["COMMENT"]   = "ISMGas version: v1.0.3"
+        hdu.header["COMMENT"]   = "ISMGas version: v1.0.4"
         
         if(self.skymaskFilenames is not None):
             hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"
