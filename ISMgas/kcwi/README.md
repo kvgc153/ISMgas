@@ -1,4 +1,10 @@
-## Reducing KCWI data 
+## Combining KCWI data (taken on the same night)
+
+This module requires the reduced datacubes to have units of FLAM16 and the wavelength axis to have units of Angstrom. 
+Ensure that this is the case before running the code, the module will not enforce this. 
+
+The code will also fail if the datacubes have different wavelength arrays (for example, if they are taken on different nights/setups). 
+While the code presented in this module will work on both the blue and red side datacubes, note that it has only been rigourously tested on the KCWI blue channel observations. 
 
 ```python
 from ISMgas.kcwi.kcwiReduction import kcwiRedux
@@ -38,5 +44,5 @@ obj.step2()
 - Finds offset shifts from the DECaLS image to the datacubes using autocorrelation
 
 **Step 2** 
-- Reprojects all the datacubes using the `reproject` package.
-- The final datacubes are aligned to the DECaLS image and.
+- Reprojects all the datacubes using the `reproject` package to the chosen pixelsize.
+- The final datacubes are aligned to the DECaLS image and combined using a mean. The final datacube has the filename - `{objid}_{slicer}_combined.fits`
