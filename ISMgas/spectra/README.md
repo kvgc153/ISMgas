@@ -10,7 +10,7 @@ This module requires the following quantity and units:
 | Quantity | Units |
 | -------- | ------|
 | Wavelength | Angstrom |
-| Flux | Arbitrary |
+| Flux (Normalized) | Arbitrary |
 | Flux(sigma) | 1 sigma uncertainity|
 
 Use the save_spectra function to save these into a .fits file 
