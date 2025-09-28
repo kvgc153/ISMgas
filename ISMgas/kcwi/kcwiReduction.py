@@ -93,6 +93,84 @@ def kcwi_check_samewave(hdr0, hdr1):
 
     return True
 
+
+
+def kcwi_resample_wave(hdu, newhdr, method='cubic',plot=False):
+    """
+    This code is from kcwikit -- https://github.com/yuguangchen1/KcwiKit/blob/master/kcwikit/kcwi/kcwi.py
+
+    Resample a cube to match the wavelength direction to a different header.
+
+    Args:
+        hdu (astropy HDU): input hdu
+        newhdr (astropy header): header containing the new wavelength grid
+        order (str): interpolation method or 'mask'
+
+    Returns:
+        astropy.io.fits.PrimaryHDU: resampled data cube in the form of HDU
+    """
+    from scipy import interpolate
+
+    hdr = hdu.header
+    wave = (np.arange(hdr['NAXIS3']) - hdr['CRPIX3'] + 1) * hdr['CD3_3'] + hdr['CRVAL3']
+    data = hdu.data.copy()
+    #print("oldwave with length %d" % hdr['NAXIS3'],"starting at %.2f" % hdr['CRVAL3'], " delta %.4f" % hdr['CD3_3'])
+    #print("newwave with length %d" % newhdr['NAXIS3'],"starting at %.2f" % newhdr['CRVAL3'], " delta %.4f" % newhdr['CD3_3'])
+    newwave = (np.arange(newhdr['NAXIS3']) - newhdr['CRPIX3'] + 1) * newhdr['CD3_3'] + newhdr['CRVAL3']
+    newdata = np.zeros((len(newwave), hdu.shape[1], hdu.shape[2])) + np.nan
+    #print("newdata with shape", newdata.shape)
+    #print("olddata with shape", data.shape)
+
+    data = data.reshape(len(wave), -1)
+    newdata = newdata.reshape(len(newwave), -1)
+    #print(newdata.shape)
+    for i in range(newdata.shape[1]):
+        spec = data[:, i]
+
+        if method != 'mask':
+            mask = ~np.isfinite(spec)
+            spec = np.nan_to_num(spec)
+
+            # No good data, skip
+            if np.sum(spec)==0:
+                continue
+
+            ci = interpolate.interp1d(wave, spec, kind=method, bounds_error=False, fill_value=np.nan)
+            #print(wave)
+            #print(newwave)
+            
+            newspec = ci(newwave)
+
+            mi = interpolate.interp1d(wave, mask, kind='linear', bounds_error=False, fill_value=1)
+            newmask = mi(newwave)
+
+            newspec[newmask != 0] = np.nan
+
+        else:
+            # mask cube
+            mask = spec
+
+            mi = interpolate.interp1d(wave, mask, kind='linear', bounds_error=False, fill_value=128)
+            newmask = mi(newwave)
+
+            newspec = newmask
+
+        newdata[:, i] = newspec
+
+    newdata = newdata.reshape((len(newwave), hdu.shape[1], hdu.shape[2]))
+
+    if plot:
+        plt.plot(wave,hdu.data[:,68,15],"g")
+        plt.plot(newwave,newdata[:,68,15],"r")
+    newhdu = hdu.copy()
+    newhdu.header['NAXIS3'] = newhdr['NAXIS3']
+    newhdu.header['CRPIX3'] = newhdr['CRPIX3']
+    newhdu.header['CRVAL3'] = newhdr['CRVAL3']
+    newhdu.header['CD3_3'] = newhdr['CD3_3']
+    newhdu.data = newdata
+
+    return newhdu
+
 def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, autocorrelate_maskfile= None, correlate_mode='full',  resolution=None):
     """
     Reproject multiple 2D images onto a common WCS frame, 
@@ -176,10 +254,23 @@ def reproject_and_mosaic_cube(hdus, mosaic_wcs, mosaic_shape, spectral_axis=0, m
         raise ValueError("method must be 'exact' or 'interp'.")
 
     ## Check if all cubes have same wavelength axis
+    changeWavelength = False # FLag
     for i in range(1, len(hdus)):
         if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
-            raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
-
+            # raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
+            print(f"The wavelength axes of the {0} and {i} cubes are not the same")
+            changeWavelength = True
+    
+    newhdus = [hdus[0]]
+    if(changeWavelength):
+        print("Resampling all wavelengths to the first frame")
+        for i in range(1, len(hdus)):
+            print(f"Resampling {i+1} datacube...")
+            fooHdu = kcwi_resample_wave(hdus[i], hdus[0].header)
+            newhdus.append(fooHdu) # Resample hdus[i+1] to hdus[0] header
+        del hdus 
+        hdus = newhdus
+        
     ## Check if len(shifts) == len(hdus
     if len(shifts) != len(hdus):
         raise ValueError("The length of shifts must match the number of HDUs provided.")

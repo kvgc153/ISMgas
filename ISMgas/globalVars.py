@@ -23,6 +23,11 @@ ISMgasPlot = {
         'markeredgewidth' :1.5    
     }
 }
+overlayAllLinesPlot = {
+    'opthin': False,
+    'fineem': False,
+    'stellar': False
+}
 
 color_pal_kvgc = {
     'pub1': [
