@@ -45,6 +45,10 @@ def convertDegreesToHMS(ra_deg:float ,dec_deg:float)->str:
     return(c.to_string('hmsdms').replace('h',':').replace('d',':').replace('m',':').replace('s',''))
 
 
+def convertHMSToDegrees(ra_str, dec_str):
+    coord = SkyCoord(ra=ra_str, dec=dec_str, unit=(u.hourangle, u.deg))
+    return coord.ra.deg, coord.dec.deg
+
 def saveSpectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'):
     return(save_spectra(wave, flux, error, fileName, folderPrefix, format))
 
