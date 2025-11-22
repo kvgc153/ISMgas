@@ -29,6 +29,18 @@ overlayAllLinesPlot = {
     'stellar': False
 }
 
+# from ISMgas.globalVars import color_pal_kvgc
+# plt.figure()
+# for i in range(len(color_pal_kvgc['pub1'])):
+#     plt.plot(
+#         np.arange(0,10,1),
+#         np.arange(0,10,1)*0 + i,
+#         color=color_pal_kvgc['pub1'][i],
+#         lw=10
+#     )
+
+# plt.savefig("pub1_colors.png")
+
 color_pal_kvgc = {
     'pub1': [
         (255/255, 255/255 ,255/255),

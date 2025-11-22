@@ -651,7 +651,8 @@ def plotWithError(x, y, yerr, sigmaLimit = 1, label = 'data', **kwargs):
         linewidth   = kwargs.get('linewidth', 3),
         label       = label,
         color       = kwargs.get('color', color_pal_kvgc['pub1'][16]),
-        linestyle   = kwargs.get('linestyle', '-')
+        linestyle   = kwargs.get('linestyle', '-'),
+        drawstyle   = kwargs.get('drawstyle', 'steps-mid'), 
     )   
 
     plt.fill_between(
@@ -659,7 +660,9 @@ def plotWithError(x, y, yerr, sigmaLimit = 1, label = 'data', **kwargs):
         y - yerr * sigmaLimit,
         y + yerr * sigmaLimit,
         alpha       = kwargs.get('sigmaAlpha', color_pal_kvgc['pub1'][7]),
-        facecolor   = kwargs.get('facecolor', color_pal_kvgc['pub1'][7])
+        facecolor   = kwargs.get('facecolor', color_pal_kvgc['pub1'][7]),
+        step   = kwargs.get('step', 'mid'), 
+
     )
 
 
