@@ -537,8 +537,13 @@ class DoubleGaussian:
 
         resultsDict = {}
         for qty in qtys:
+            fooVals = np.array([getNestedArrayValue(i, qty) for i in fitResults])
+            ## Remove nans from the fits
+            nanMask = np.isnan(fooVals)
+            fooVals = fooVals[~nanMask]
+            
             resultsDict[qty[-1]] = plotHistogram(
-                [getNestedArrayValue(i, qty) for i in fitResults], 
+                fooVals, 
                 plotting=False
             )
             
