@@ -537,8 +537,12 @@ class DoubleGaussian:
 
         resultsDict = {}
         for qty in qtys:
+            arr = np.array([getNestedArrayValue(i, qty) for i in fitResults])
+            ## Remove nan values from failed fis
+            maskarr = np.isnan(arr)
+            arr = arr[~maskarr]
             resultsDict[qty[-1]] = plotHistogram(
-                [getNestedArrayValue(i, qty) for i in fitResults], 
+                arr, 
                 plotting=False
             )
             

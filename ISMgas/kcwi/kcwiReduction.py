@@ -183,7 +183,7 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, autocorrelat
     ## If a autocorrelate mask is provided,  make userMask to apply later
     if(autocorrelate_maskfile is not None):
         userMask = fits.getdata(autocorrelate_maskfile )
-        userMask = userMask.astype(float)
+        userMask = userMask.astype(int)
         userMask[userMask==0] = np.nan
 
     # Choose the reprojection function
@@ -219,19 +219,69 @@ def reproject_and_mosaic(hdus, method='exact', autocorrelate=False, autocorrelat
             continue  # Skip if no overlap
         
         if(autocorrelate):
+            ## Get an initial pixel shift
             corr = correlate2d(
                 np.nan_to_num(ref_data) * valid_mask, 
                 np.nan_to_num(target_data) * valid_mask,
                 mode=correlate_mode
             )
-
             shift_y, shift_x = np.array(np.unravel_index(np.argmax(corr), corr.shape)) - np.array(corr.shape) // 2
+            
+            ## The issue is that will not do well for extended sources where things change at sub-pixel levels
+            ## So similar to kcwikit, we will try to search around this search radius to find a better solution.
 
-            # Apply the shift
-            shifted_data = shift(target_data, shift=(shift_y, shift_x), order=1, mode='constant', cval=np.nan)
-            shifts.append((shift_y, shift_x))  # Store the shift
-            
-            
+            best_score = -np.inf
+            best_sy, best_sx = shift_y, shift_x
+            print("guess shift:", best_sy,best_sx)
+
+
+            search_radius = 3.0
+            step = 0.05
+            deltas = np.arange(-search_radius, search_radius + step, step)
+
+            for dy in deltas:
+                for dx in deltas:
+                    # trial shift
+                    trial_sy = shift_y + dy
+                    trial_sx = shift_x + dx
+
+                    shifted_trial = shift(
+                        target_data,
+                        shift=(trial_sy, trial_sx),
+                        order=1,
+                        mode='constant',
+                        cval=np.nan
+                    )
+
+                    # normalized cross-correlation score
+                    a = ref_data[valid_mask].ravel()
+                    b = shifted_trial[valid_mask].ravel()
+
+                    num = np.nansum(a * b)
+                    den = np.sqrt(np.nansum(a**2) * np.nansum(b**2))
+                    if den == 0:
+                        continue
+
+                    score = num / den
+
+                    if score > best_score:
+                        best_score = score
+                        best_sy, best_sx = trial_sy, trial_sx
+
+            print("final shift:", best_sy,best_sx)
+            # use refined subpixel shifts
+            shift_y, shift_x = best_sy, best_sx
+
+            shifted_data = shift(
+                target_data,
+                shift=(shift_y, shift_x),
+                order=1,
+                mode='constant',
+                cval=np.nan
+            )
+
+            shifts.append((shift_y, shift_x))
+
         else:
             shifted_data = target_data
             shifts.append((0.0, 0.0))  # No shift applied

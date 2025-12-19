@@ -20,7 +20,8 @@ ISMgasPlot = {
     'errorplot':{
         'capsize'         : 3, 
         'elinewidth'      : 1, 
-        'markeredgewidth' :1.5    
+        'markeredgewidth' :1.5,
+        'fmt': 'o'
     }
 }
 overlayAllLinesPlot = {
