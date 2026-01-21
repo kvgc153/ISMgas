@@ -860,27 +860,27 @@ def vactoair(wave):
     return new_wave
 
 
-def overlayAllLines(zfactor =1, lowion=True, highion=True, opthin=True, stellar=True, nebem=True, fineem=True, scaleAlpha = 1):
+def overlayAllLines(zfactor =1, lowion=True, highion=True, opthin=True, stellar=True, nebem=True, fineem=True, scaleAlpha = 1,ylims=[0,1], linewidth=1 ):
     ## zfactor  = (1+zs)/(1+zinterving) -- zfactor = 1 for zinterving = zs
     
     for i in linelist_highz.keys():
         if(linelist_highz[i].get('lowion') is not None and lowion==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'blue', alpha = scaleAlpha*0.7)
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'blue', alpha = scaleAlpha*0.7, ymin=ylims[0], ymax=ylims[1], linewidth= linewidth)
 
         if(linelist_highz[i].get('highion') is not None and highion==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'purple', alpha = scaleAlpha*0.7)
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'purple', alpha = scaleAlpha*0.7, ymin=ylims[0], ymax=ylims[1], linewidth= linewidth)
 
         if(linelist_highz[i].get('opthin') is not None and opthin==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'yellowgreen', alpha = scaleAlpha*0.7)        
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'yellowgreen', alpha = scaleAlpha*0.7, ymin=ylims[0], ymax=ylims[1], linewidth= linewidth)        
 
         if(linelist_highz[i].get('stellar') is not None and stellar==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'orange', linestyle= '--', alpha = scaleAlpha*0.7)
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'orange', linestyle= '--', alpha = scaleAlpha*0.7, ymin=ylims[0], ymax=ylims[1], linewidth= linewidth)
 
         if(linelist_highz[i].get('nebem') is not None and nebem==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'cornflowerblue' ,linestyle='dotted', alpha = scaleAlpha*0.7)        
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'coral' ,linestyle='--', alpha = scaleAlpha*0.7, ymin=1-ylims[0], ymax=1-ylims[1], linewidth= linewidth)        
             
         if(linelist_highz[i].get('fineem') is not None and fineem==True):
-            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'cornflowerblue' ,linestyle='--', alpha = scaleAlpha*0.9)        
+            plt.axvline(zfactor*linelist_highz[i]['lambda'], color = 'cornflowerblue' ,linestyle='--', alpha = scaleAlpha*0.9, ymin=1-ylims[0], ymax=1-ylims[1], linewidth= linewidth)        
 
 
 def plotUVSpectra(xdata, ydata, ydataerr, xlim, ylim =[0,2]):
