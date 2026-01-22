@@ -173,34 +173,27 @@ def kcwi_resample_wave(hdu, newhdr, method='cubic',plot=False):
 
 import os
 from scipy import ndimage
+
 def _process_single_datacube(
     hdu,
     mosaic_wcs,
     mosaic_shape,
     spectral_axis,
     method,
-    shift_xy,  # in arcseconds
+    shift_xy,  # pixels (y, x), applied AFTER reprojection
     cube_index,
     outdir
 ):
 
     os.makedirs(outdir, exist_ok=True)
 
-    shift_y_arcsec, shift_x_arcsec = shift_xy
+    shift_y_pix, shift_x_pix = shift_xy
     cube_data = hdu.data
     n_spectral = cube_data.shape[spectral_axis]
 
-    # 2D WCS
+    # 2D WCS (NO shifting here)
     wcs2d = WCS(hdu.header).dropaxis(2)
     header2d = wcs2d.to_fits()[0].header
-
-    # Convert arcseconds to degrees
-    shift_x_deg = shift_x_arcsec / 3600.0
-    shift_y_deg = shift_y_arcsec / 3600.0
-
-    # Apply the shift to CRVAL1/CRVAL2 (move WCS, not pixels)
-    header2d['CRVAL1'] -= shift_x_deg
-    header2d['CRVAL2'] -= shift_y_deg
 
     processed_cube = np.full((n_spectral, *mosaic_shape), np.nan)
     weight_cube = np.zeros((n_spectral, *mosaic_shape), dtype=float)
@@ -208,6 +201,7 @@ def _process_single_datacube(
     for i in range(n_spectral):
         if i % 250 == 0:
             print(f"Datacube-{cube_index}: Processing {i}")
+
         slice_data = cube_data[i, :, :]
         slice_hdu = fits.ImageHDU(slice_data, header=header2d)
 
@@ -220,8 +214,25 @@ def _process_single_datacube(
                 slice_hdu, mosaic_wcs, shape_out=mosaic_shape
             )
 
-        valid = footprint > 0
-        processed_cube[i][valid] = np.nan_to_num(reproj[valid])
+        # ✅ Apply pixel shift AFTER reprojection
+        reproj_shifted = ndimage.shift(
+            reproj,
+            shift=(shift_y_pix, shift_x_pix),
+            order=1,        # bilinear (same spirit as interp)
+            mode='constant',
+            cval=np.nan
+        )
+
+        footprint_shifted = ndimage.shift(
+            footprint,
+            shift=(shift_y_pix, shift_x_pix),
+            order=0,        # nearest-neighbor for mask
+            mode='constant',
+            cval=0.0
+        )
+
+        valid = footprint_shifted > 0
+        processed_cube[i][valid] = np.nan_to_num(reproj_shifted[valid])
         weight_cube[i][valid] += 1
 
     processed_cube[weight_cube > 0] /= weight_cube[weight_cube > 0]
@@ -352,10 +363,7 @@ def reproject_and_mosaic(
             mode='constant',
             cval=np.nan
         )
-        
-        ## Convert to arcseconds to save
-        shift_x *= resolution.value 
-        shift_y *= resolution.value
+        # print(shift_x,shift_y, resolution, resolution.value)
 
         shifted_frames.append(shifted_data)
         shifts.append((shift_y, shift_x))
@@ -762,7 +770,7 @@ class kcwiRedux:
         
         hdu.header["COMMENT"]   = f"Files used: {','.join(self.filenames)}"
         hdu.header["COMMENT"]   = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
-        hdu.header["COMMENT"]   = "ISMGas version: v1.0.4"
+        hdu.header["COMMENT"]   = "ISMGas version: v1.0.5"
         
         if(self.skymaskFilenames is not None):
             hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"
