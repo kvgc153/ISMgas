@@ -182,7 +182,7 @@ def _process_single_datacube(
     method,
     shift_xy,  # pixels (y, x), applied AFTER reprojection
     cube_index,
-    outdir
+    outdir,
 ):
 
     os.makedirs(outdir, exist_ok=True)
@@ -214,7 +214,7 @@ def _process_single_datacube(
                 slice_hdu, mosaic_wcs, shape_out=mosaic_shape
             )
 
-        # ✅ Apply pixel shift AFTER reprojection
+        # Apply pixel shift AFTER reprojection
         reproj_shifted = ndimage.shift(
             reproj,
             shift=(shift_y_pix, shift_x_pix),
@@ -279,6 +279,7 @@ def reproject_and_mosaic(
     shifted_frames = [ref_data]
     shifts = [(0.0, 0.0)]
 
+    # The following code uses the same approach as KCWIKit to find the optimal shifts
     # KCWI-style parameters
     search_size = 10
     conv_filter = 2
@@ -303,14 +304,18 @@ def reproject_and_mosaic(
             for j, dy in enumerate(yy):
                 shifted = shift(tgt_data, (dx, dy), order=1, mode='constant', cval=0.0)
                 if userMask is not None:
-                    valid = (userMask == userMask)
+                    valid = (userMask == userMask) # Convert to boolean
                     mult = ref_data[valid] * shifted[valid]
                 else:
                     mult = ref_data * shifted
                 if np.any(mult):
                     crls[i, j] = np.sum(mult)
 
+        # Apply a maximum filter to find local maxima in the correlation map
+        # The filter size is (2*conv_filter+1) to match the convolution kernel size
         max_conv = ndimage.maximum_filter(crls, 2 * conv_filter + 1)
+        
+        # Create a boolean mask identifying pixels that are local maxima and have non-zero correlation
         maxima = (crls == max_conv) & (crls != 0)
         labeled, _ = ndimage.label(maxima)
         slices = ndimage.find_objects(labeled)
@@ -374,6 +379,7 @@ def reproject_and_mosaic_cube(
     hdus,
     mosaic_wcs,
     mosaic_shape,
+    objid,
     spectral_axis=0,
     method='exact',
     shifts=[]
@@ -382,11 +388,31 @@ def reproject_and_mosaic_cube(
     import numpy as np
     from astropy.io import fits
 
+    ## Begin Checks ## 
     if len(hdus) == 0:
         raise ValueError("No HDUs provided.")
 
     if len(hdus) != len(shifts):
         raise ValueError("shifts length must match number of HDUs")
+    
+    ## Check if all cubes have same wavelength axis
+    changeWavelength = False # FLag
+    for i in range(1, len(hdus)):
+        if not kcwi_check_samewave(hdus[0].header, hdus[i].header):
+            # raise ValueError(f"The wavelength axes of the {0} and {i} cubes are not the same. Fix this before proceeding.")
+            print(f"The wavelength axes of the {0} and {i} cubes are not the same")
+            changeWavelength = True
+    
+    newhdus = [hdus[0]]
+    if(changeWavelength):
+        print("Resampling all wavelengths to the first frame")
+        for i in range(1, len(hdus)):
+            print(f"Resampling {i+1} datacube...")
+            fooHdu = kcwi_resample_wave(hdus[i], hdus[0].header)
+            newhdus.append(fooHdu) # Resample hdus[i+1] to hdus[0] header
+        del hdus 
+        hdus = newhdus
+    ## End checks ## 
 
     processed_files = Parallel(n_jobs=-1)(
         delayed(_process_single_datacube)(
@@ -397,7 +423,7 @@ def reproject_and_mosaic_cube(
             method=method,
             shift_xy=shifts[i],
             cube_index=i,
-            outdir="processed_cubes"
+            outdir=f"{objid}_processed_cubes",
         )
         for i in range(len(hdus))
     )
@@ -740,7 +766,8 @@ class kcwiRedux:
             hdus          = hdus,
             shifts        = self.shifts,
             mosaic_wcs    = self.mosaic_wcs,
-            mosaic_shape  = self.mosaic_shape
+            mosaic_shape  = self.mosaic_shape,
+            objid         = self.objid, 
         )
         
         shiftedframe_hdu.writeto(f"{self.objid}_shifted_step2.fits", overwrite=True)

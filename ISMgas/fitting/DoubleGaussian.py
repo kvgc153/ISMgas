@@ -537,7 +537,7 @@ class DoubleGaussian:
 
         resultsDict = {}
         for qty in qtys:
-            fooVals = np.array([getNestedArrayValue(i, qty) for i in fitResults])
+            fooVals = np.array([getNestedArrayValue(i, qty) for i in fitResults], dtype=np.float32)
             ## Remove nans from the fits
             nanMask = np.isnan(fooVals)
             fooVals = fooVals[~nanMask]
