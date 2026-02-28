@@ -1,9 +1,9 @@
-from scipy.signal import correlate2d
-from scipy.ndimage import shift
 import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.visualization import ImageNormalize, ZScaleInterval
+import matplotlib
+matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 
 from reproject import reproject_exact, reproject_interp
@@ -11,6 +11,11 @@ from reproject.mosaicking import find_optimal_celestial_wcs
 
 from symfit.core.minimizers import DifferentialEvolution,BFGS,BasinHopping
 from symfit import Poly, variables, parameters, Model, Fit, cos,GreaterThan,LessThan
+
+import os
+from scipy import ndimage
+from scipy.signal import correlate2d
+from scipy.ndimage import shift
 
 from ISMgas.visualization.fits import ScaleImage
 from ISMgas.GalaxyProperties import GalaxyProperties
@@ -171,8 +176,6 @@ def kcwi_resample_wave(hdu, newhdr, method='cubic',plot=False):
 
     return newhdu
 
-import os
-from scipy import ndimage
 
 def _process_single_datacube(
     hdu,
@@ -270,16 +273,20 @@ def reproject_and_mosaic(
         mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus)
     else:
         mosaic_wcs, mosaic_shape = find_optimal_celestial_wcs(hdus, resolution=resolution)
+        
+    print("Optimal WCS determined. Starting reprojection and mosaic...")
 
     # Reference frame
     ref_hdu = hdus[0]
     ref_data, _ = reproj_func(ref_hdu, mosaic_wcs, shape_out=mosaic_shape)
     ref_data = np.nan_to_num(ref_data)
 
+    print("Reference frame reprojected. Starting autocorrelation and alignment...")
+
     shifted_frames = [ref_data]
     shifts = [(0.0, 0.0)]
 
-    # The following code uses the same approach as KCWIKit to find the optimal shifts
+    # The following code uses similar approach as KCWIKit to find the optimal shifts
     # KCWI-style parameters
     search_size = 10
     conv_filter = 2
@@ -334,6 +341,9 @@ def reproject_and_mosaic(
 
         shift_y = xx[dxs[idx]]
         shift_x = yy[dys[idx]]
+        
+        print(f"Coarse shift found: (y: {shift_y}, x: {shift_x})")
+        print("Starting fine search...")
 
         # ---------- FINE SEARCH ----------
         ref_up = ndimage.zoom(ref_data, upfactor, order=1)
@@ -360,6 +370,8 @@ def reproject_and_mosaic(
         mi, mj = np.unravel_index(np.argmax(crls_fine), crls_fine.shape)
         shift_y += fx[mi] / upfactor
         shift_x += fy[mj] / upfactor
+        
+        print(f"Fine shift found: (y: {shift_y}, x: {shift_x})")
 
         shifted_data = shift(
             tgt_data,
@@ -639,15 +651,20 @@ class kcwiRedux:
         )
         gg.decalsFitsAndPng(grab=grab, pixscale = resolution.value, size=size)
 
-        ## Autocorrelate and auto align all the datcubes -- great for quick redux.
+        ## Autocorrelate and auto align all the datcubes 
         self.autocorrelate            = autocorrelate
         self.autocorrelate_maskfile   = autocorrelate_maskfile
         self.correlate_mode           = correlate_mode
+        
              
         ## Show user color image of all the datacubes that are going to be reduced 
         self.showWhiteLightImage()
         
     def showWhiteLightImage(self):
+        """
+        Shows the user a white light image of all the datacubes that are going to be reduced. 
+        This is just for the user to check that the datacubes look correct before reducing.
+        """
         nrow = 4 
         ncol = len(self.filenames)//nrow + 1 
         
@@ -667,18 +684,33 @@ class kcwiRedux:
         plt.show()
         
 
-    def step1(self, refCombine='mean'):
-        hduRef              = fits.open( self.objid + "_DECALS.fits")
-        hduRef[0].header    = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
+    def step1(self, hduRef=None, refCombine='mean'):
+        """
+        Step 1 of the reduction process.
+        This step will align all the datacubes to a common WCS and save the shifts to a file.
+        """
         
-        ## By default we will use the mean of the DECaLS image 
-        ## But if for some reason that fails (too bright targets in the red). then you can pass an integer to specify the band
-        if(refCombine=='mean'):
-            hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
-        if(type(refCombine)==type(1)):
-            hduRef[0].data = hduRef[0].data[refCombine]
-        
-        hdus = [hduRef[0]] # Put the reference image first
+        hdus = []
+        if(hduRef is None):
+            ## If the user has not provided a reference image, we will use the DECaLS image as the reference image for alignment.
+            ## By default we will use the mean of the DECaLS image 
+            ## But if for some reason that fails (too bright targets in the red). then the user can pass an integer to specify the band 
+            ## 0 - g band, 1 - r band, 2 - z band
+            hduRef              = fits.open( self.objid + "_DECALS.fits")
+            hduRef[0].header    = WCS(hduRef[0].header).dropaxis(2).to_fits()[0].header
+            
+            if(refCombine=='mean'):
+                hduRef[0].data = np.nanmean(hduRef[0].data,axis=0)
+            if(type(refCombine)==type(1)):
+                hduRef[0].data = hduRef[0].data[refCombine]
+            
+            hdus = [hduRef[0]] # Put the reference image first
+
+        else:
+            ## If the user has provided a reference image, we will use that as the reference image for alignment.
+            hdus = [hduRef]
+ 
+            
         for f in self.filenames: 
             hdus.append(preprocess(f, slicer=self.slicer))
             
@@ -781,6 +813,11 @@ class kcwiRedux:
         hdu.data = mosaic_data
         hdu.header = self.mosaic_wcs.to_fits()[0].header
         hdrFoo = fits.getheader(self.filenames[0])
+        ## Save the hdrReference as txt file for the user to inspect and use for future reference if needed.
+        with open(f"{self.objid}_{self.slicer}_hdrReference.txt", "w") as f:
+            for key in hdrFoo.keys():
+                f.write(f"{key}: {hdrFoo[key]} -- {hdrFoo.comments[key]}\n")
+    
         hdrFooComments = hdrFoo.comments
 
         hdu.header['WCSAXES']   = 3 ## Note that tha mosaic_wcs has only 2 dimensions.
