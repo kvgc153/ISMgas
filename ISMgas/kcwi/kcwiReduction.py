@@ -2,8 +2,6 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.visualization import ImageNormalize, ZScaleInterval
-import matplotlib
-matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 
 from reproject import reproject_exact, reproject_interp
