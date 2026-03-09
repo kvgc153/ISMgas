@@ -1,10 +1,9 @@
-## Combining KCWI data (taken on the same night)
+## Combining KCWI data
 
-This module is used to combine observations of a target taken on a given night. 
+This module is used to combine observations of a target taken on multiple nights using the same instrument setup.
 
 Please ensure that the reduced datacubes have units of `FLAM16` and the wavelength axis has units of `Angstrom` before using this module, this is not enforced in code. 
 
-The code will also fail if the datacubes have different wavelength arrays (for example, if they are taken on different nights/setups). 
 While the code presented in this module will work on both the blue and red side datacubes, note that it has only been rigourously tested on the KCWI blue channel observations (red side is still being tested).
 
 Please report any issues and bug fixes via a PR.
@@ -48,6 +47,10 @@ obj  = kcwiRedux(
 obj.step1()
 ## By default, step1 uses a mean of the g,r and z filters in the DECaLS image to align the datacubes BUT if your target is only bright in the blue filter for example, you can also select the filter to use for alignment by using the refCombine keyword.
 #obj.step1(refCombine=0)  # 0 -- g band, 1 -- r band, 2 -- z band.
+
+## If you would like to provide a different reference image instead of the DECaLS image (say HST image)
+# hduHST = fits.open("DESI231_HST.fits") 
+# obj.step1(hduRef=hduHST)
 
 obj.step2()
 ```
