@@ -661,6 +661,7 @@ class unWrapFittingResults:
 
 
     def computeResults(self):
+        print("Making diagonistics plots...")
 
         ###########################################
         plt.figure(figsize=(13,9))
@@ -690,6 +691,7 @@ class unWrapFittingResults:
         plt.savefig(f"Initial-fits-histogram-{self.suffix}.png", bbox_extra_artists=(suptitle,), **ISMgasPlot['savefig'])
         plt.close()
         
+        print(f"Saved initial fits histogram to Initial-fits-histogram-{self.suffix}.png")
         ##########################################
 
 
@@ -722,6 +724,8 @@ class unWrapFittingResults:
         plt.tight_layout()
         plt.savefig(f"All-fits-histogram-{self.suffix}.png", bbox_extra_artists=(suptitle,), **ISMgasPlot['savefig'])
         plt.close()
+        print(f"Saved final fits histogram to All-fits-histogram-{self.suffix}.png")
+
         ###########################################
 
 
@@ -753,6 +757,8 @@ class unWrapFittingResults:
         plt.tight_layout()
         plt.savefig(f"All-fits-deconvolved-histogram-{self.suffix}.png",dpi=50,bbox_extra_artists=(suptitle,), bbox_inches="tight")
         plt.close()
+        print(f"Saved deconvolved final fits histogram to All-fits-deconvolved-histogram-{self.suffix}.png")
+
         ###########################################
 
 
@@ -803,6 +809,7 @@ class unWrapFittingResults:
 
         plt.savefig(f"derived-measurements-histogram-{self.suffix}.png",dpi=50,bbox_extra_artists=(suptitle,), bbox_inches="tight")
         plt.close()
+        print(f"Saved deconvolved derived measurements to derived-measurements-histogram-{self.suffix}.png")
 
         ###########################################
 
@@ -854,6 +861,7 @@ class unWrapFittingResults:
         plt.tight_layout()
         plt.savefig(f"derived-measurements-deconvolved-histogram-{self.suffix}.png", bbox_extra_artists=(suptitle,), **ISMgasPlot['savefig'])
         plt.close()
+        print(f"Saved deconvolved derived measurements to derived-measurements-deconvolved-histogram-{self.suffix}.png")
 
         ##########################################
 
@@ -903,6 +911,8 @@ class unWrapFittingResults:
         plt.tight_layout()
         plt.savefig(f"derived-measurements-onlyoutflow-histogram-{self.suffix}.png", bbox_extra_artists=(suptitle,), **ISMgasPlot['savefig'])
         plt.close()
+        print(f"Saved derived outflow measurements to  derived-measurements-onlyoutflow-histogram-{self.suffix}.png")
+
         
         ###########################################
 
