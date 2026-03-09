@@ -1028,10 +1028,10 @@ class unWrapFittingResults:
             'residual'      : self.residual_out,
             'residual_sig'  : self.residual_outsig,
             'cont_lvl'      : self.cont_lvl,
-            'initial-values' : [],
-            'derived_results': [],
-            'derived_results_deconv': [],
-            'derived_results_onlyoutflow': [],
+            # 'initial-values' : [],
+            # 'derived_results': [],
+            # 'derived_results_deconv': [],
+            # 'derived_results_onlyoutflow': [],
 
 
         }
