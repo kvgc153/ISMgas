@@ -192,7 +192,7 @@ def _process_single_datacube(
     cube_data = hdu.data
     n_spectral = cube_data.shape[spectral_axis]
 
-    # 2D WCS (NO shifting here)
+    # 2D WCS
     wcs2d = WCS(hdu.header).dropaxis(2)
     header2d = wcs2d.to_fits()[0].header
 
@@ -832,7 +832,7 @@ class kcwiRedux:
         
         hdu.header["COMMENT"]   = f"Files used: {','.join(self.filenames)}"
         hdu.header["COMMENT"]   = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
-        hdu.header["COMMENT"]   = "ISMGas version: v1.0.5"
+        hdu.header["COMMENT"]   = "ISMgas version: v1.0.5"
         
         if(self.skymaskFilenames is not None):
             hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"

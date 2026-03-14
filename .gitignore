@@ -1,7 +1,8 @@
+/ISMgas/kcwi/test_cubes/*
 *.DS_Store
 */ISMgas/.DS_Store
 */ISMgas/fitting/.DS_Store
-*/oISMgas/fitting/examples/.DS_Store
+*/ISMgas/fitting/examples/.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
