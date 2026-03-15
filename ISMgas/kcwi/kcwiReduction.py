@@ -286,7 +286,7 @@ def reproject_and_mosaic(
 
     # The following code uses similar approach as KCWIKit to find the optimal shifts
     # KCWI-style parameters
-    search_size = 10
+    search_size = 25
     conv_filter = 2
     upfactor = 10
 
@@ -344,8 +344,8 @@ def reproject_and_mosaic(
         print("Starting fine search...")
 
         # ---------- FINE SEARCH ----------
-        ref_up = ndimage.zoom(ref_data, upfactor, order=1)
-        tgt_up = ndimage.zoom(tgt_data, upfactor, order=1)
+        ref_up = ndimage.zoom(ref_data, upfactor, order=1, grid_mode=True, mode='grid-constant')
+        tgt_up = ndimage.zoom(tgt_data, upfactor, order=1, grid_mode=True, mode='grid-constant')
 
         ncrl = upfactor
         fx = np.arange(-ncrl, ncrl + 1)
@@ -384,6 +384,7 @@ def reproject_and_mosaic(
         shifts.append((shift_y, shift_x))
 
     return shifted_frames, shifts, mosaic_wcs, mosaic_shape
+
 
 def reproject_and_mosaic_cube(
     hdus,
