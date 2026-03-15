@@ -831,13 +831,13 @@ class kcwiRedux:
         hdu.header.remove('LONPOLE')
         hdu.header.remove('LATPOLE')
         
-        hdu.header["COMMENT"]   = f"Files used: {','.join(self.filenames)}"
-        hdu.header["COMMENT"]   = f"Shifts saved to {self.objid}_{self.slicer}_shifts.list"
-        hdu.header["COMMENT"]   = "ISMgas version: v1.0.5"
-        
+        hdu.header["FILES"]   = (f"{','.join(self.filenames)}", "List of files used to make the mosaic datacube")
+        hdu.header["SHIFT"]   = (f"{self.objid}_{self.slicer}_shifts.list", "File containing the shifts applied to each datacube for alignment")
+        hdu.header["VERSION"]   = ( "ISMgas-v1.0.5", "Version of ISMgas used to create the datacube")
+
         if(self.skymaskFilenames is not None):
             hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"
-            hdu.header["COMMENT"]   = f"Sky mask files used: {','.join(self.skymaskFilenames)}"
-
+            hdu.header["SKY_MASKS"]   = (f"{','.join(self.skymaskFilenames)}", "List of sky masks used to remove sky gradients")
+            
         hdu.writeto(f"{self.objid}_{self.slicer}_combined.fits", overwrite=True)
         print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits") 
