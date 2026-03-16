@@ -24,6 +24,7 @@ class kcwiAnalysis():
         self.fileName = kwargs.get('filename','')
         self.maskFile  = kwargs.get('maskfile','')
         self.varFile   = kwargs.get('varfile','')
+        self.objid    = kwargs.get('objid','')
 
         self.hdr = fits.getheader(self.fileName)
         self.dataCube = fits.getdata(self.fileName)

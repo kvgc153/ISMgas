@@ -839,7 +839,7 @@ class kcwiRedux:
 
         if(self.skymaskFilenames is not None):
             hdu.header["COMMENT"]   = "Removed sky gradient in each datacube using 2D first-order polynomial"
-            hdu.header["SKY_MASKS"]   = (f"{','.join(self.skymaskFilenames)}", "List of sky masks used to remove sky gradients")
+            hdu.header["MASKS"]   = (f"{','.join(self.skymaskFilenames)}", "List of sky masks used to remove sky gradients")
             
         hdu.writeto(f"{self.objid}_{self.slicer}_combined.fits", overwrite=True)
         print(f"Datacube saved as {self.objid}_{self.slicer}_combined.fits") 
