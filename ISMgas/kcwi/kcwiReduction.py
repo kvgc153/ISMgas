@@ -550,7 +550,7 @@ def makeErrorSpectra(maskFile, hdrFile, xIdx, yIdx, xlim=[3300,5000], ylim=[0,0.
     
     
     dd = kcwiAnalysis(
-        filename = [hdrFile],
+        filename = hdrFile,
     )
     plt.figure(dpi=100)
     plt.imshow(dd.dataCubeMean, origin='lower', norm= ImageNormalize(dd.dataCubeMean, interval=ZScaleInterval()))
@@ -805,6 +805,8 @@ class kcwiRedux:
 
         plt.figure(dpi=200)
         ScaleImage(np.nanmedian(mosaic_data, axis=0)).plot()
+        plt.tight_layout()
+        plt.savefig(self.objid+"_mosaic_white_light.png")
         plt.show()
 
         # Save to datacube
