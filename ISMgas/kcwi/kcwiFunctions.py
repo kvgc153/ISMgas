@@ -28,7 +28,10 @@ class kcwiAnalysis():
 
         self.hdr = fits.getheader(self.fileName)
         self.dataCube = fits.getdata(self.fileName)
-        self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CDELT3'] + self.hdr['CRVAL3']
+        try:
+            self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CDELT3'] + self.hdr['CRVAL3']
+        except KeyError:
+            self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CD3_3'] + self.hdr['CRVAL3']
 
         if(self.hdr['CUNIT3'] == 'Angstrom'):
             self.wave = self.wave * u.AA
