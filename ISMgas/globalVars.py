@@ -18,6 +18,7 @@ ISMgasPlot = {
         'bbox_inches' : 'tight'
     },
     'errorplot':{
+        'fmt'             :'o',
         'capsize'         : 3, 
         'elinewidth'      : 1, 
         'markeredgewidth' :1.5,
