@@ -248,6 +248,8 @@ def _process_single_datacube(
 def reproject_and_mosaic(
     hdus,
     method='exact',
+    search_size=25,
+    offset = (0,0),
     autocorrelate=False,
     autocorrelate_maskfile=None,
     correlate_mode='full',
@@ -286,9 +288,12 @@ def reproject_and_mosaic(
 
     # The following code uses similar approach as KCWIKit to find the optimal shifts
     # KCWI-style parameters
-    search_size = 25
+    search_size = search_size
     conv_filter = 2
     upfactor = 10
+    offset = offset    
+    print(f"Autocorrelation parameters: search_size={search_size}, conv_filter={conv_filter}, upfactor={upfactor}, offset={offset}")
+
 
     for hdu in hdus[1:]:
         tgt_data, _ = reproj_func(hdu, mosaic_wcs, shape_out=mosaic_shape)
@@ -301,8 +306,8 @@ def reproject_and_mosaic(
 
         # ---------- COARSE SEARCH ----------
         crls_size = search_size + conv_filter
-        xx = np.arange(-crls_size, crls_size + 1)
-        yy = np.arange(-crls_size, crls_size + 1)
+        xx = np.arange(-crls_size, crls_size + 1) + offset[1]
+        yy = np.arange(-crls_size, crls_size + 1) + offset[0]
         crls = np.zeros((len(xx), len(yy)))
 
         for i, dx in enumerate(xx):
@@ -619,6 +624,8 @@ class kcwiRedux:
                  objid, ra, dec, 
                  resolution, size, 
                  filenames, slicer, 
+                 search_size = 25,
+                 offset = (0,0),
                  grab=False,
                  autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', 
                  skymaskFilenames = None):
@@ -642,6 +649,8 @@ class kcwiRedux:
         self.objid              = objid
         self.slicer             = slicer
         self.resolution         = resolution
+        self.search_size        = search_size
+        self.offset             = offset
         
         gg = GalaxyProperties(
             ra= ra,
@@ -718,7 +727,10 @@ class kcwiRedux:
             resolution=self.resolution, 
             autocorrelate = self.autocorrelate,
             autocorrelate_maskfile = self.autocorrelate_maskfile,
-            correlate_mode= self.correlate_mode
+            correlate_mode= self.correlate_mode,
+            search_size   = self.search_size,
+            offset = self.offset
+
         )
         
         hdu         = fits.PrimaryHDU()
