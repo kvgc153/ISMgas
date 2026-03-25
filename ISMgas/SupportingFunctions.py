@@ -24,7 +24,8 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.table import Table
-from astropy import units
+from astropy.nddata import Cutout2D
+
 
 from ISMgas.linelist import linelist_highz, linelist_SDSS
 
@@ -79,7 +80,58 @@ def save_spectra(wave, flux, error, fileName, folderPrefix = '', format = 'fits'
     if(format=="ascii"):
         t = Table([wave,flux,error], names=('LAMBDA', 'SPEC', 'ERR'))
         t.write(folderPrefix+"%s.txt"%(fileName), format='ascii', overwrite=True)
-        
+  
+  
+
+
+def make_cutout_hdu(hdu, ra, dec, size, size_in_pixels=False):
+    """
+    Create a cutout HDU from an input HDU.
+
+    Parameters
+    ----------
+    hdu : fits HDU
+    ra, dec : float
+        Sky coordinates in degrees
+    size : int, tuple, or Quantity
+        Cutout size
+    size_in_pixels : bool
+        If True, interpret size as pixels
+
+    Returns
+    -------
+    fits.ImageHDU
+    """
+    from astropy import units
+
+    wcs = WCS(hdu.header)
+    position = SkyCoord(ra, dec, unit="deg")
+
+    # Force pixel interpretation if requested
+    if size_in_pixels:
+        if isinstance(size, (int, float)):
+            size = (int(size), int(size))
+        elif isinstance(size, tuple):
+            size = tuple(int(s) for s in size)
+    else:
+        # allow angular sizes like 10*u.arcsec
+        pass
+
+    cutout = Cutout2D(
+        data=hdu.data,
+        position=position,
+        size=size,
+        wcs=wcs
+    )
+
+    new_header = cutout.wcs.to_header()
+
+    cutout_hdu = fits.ImageHDU(
+        data=cutout.data,
+        header=new_header
+    )
+
+    return cutout_hdu      
 
 def removeCosmicRays(data, inbkg, sigclip=2, objlim=2, readnoise=4, cleantype='medmask', niter=4,   verbose=True):
     """
