@@ -30,11 +30,19 @@ class kcwiAnalysis():
         self.dataCube = fits.getdata(self.fileName)
         try:
             self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CDELT3'] + self.hdr['CRVAL3']
+            if(self.hdr['CUNIT3'] == 'Angstrom'):
+                self.wave = self.wave * u.AA
         except KeyError:
-            self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CD3_3'] + self.hdr['CRVAL3']
+            try:
+                self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CD3_3'] + self.hdr['CRVAL3']
+                if(self.hdr['CUNIT3'] == 'Angstrom'):
+                    self.wave = self.wave * u.AA
+            ## Other excpetions just initialize the wave array as an array of zeros
+            except Exception as e:
+                print(f"Warning: Could not initialize wavelength array. Setting to zeros. Error: {e}")
+                self.wave = np.zeros(self.hdr['NAXIS3']) * u.AA
+        
 
-        if(self.hdr['CUNIT3'] == 'Angstrom'):
-            self.wave = self.wave * u.AA
         # self.combine   = kwargs.get('combine','mean')
 
         # if(self.combine=='mean'):
@@ -78,7 +86,7 @@ class kcwiAnalysis():
         self.saturation, self.backsub, self.vb    = kwargs.get('saturation_backsub_vb',['white',False,False])
 
 
-    def spectraUnderMask(self, method='sum', plot=False):
+    def spectraUnderMask(self, method='sum', plot=False, color='black', label=None):
         """
         Computes the spectra under the mask. The method can be either sum or mean.
 
@@ -88,17 +96,20 @@ class kcwiAnalysis():
 
         if(method=='sum'):
             dataSum = np.nansum(self.specMask,axis=0)
-            plt.plot(self.wave, dataSum, color='black', drawstyle='steps-mid')
+            if(plot):
+                plt.plot(self.wave, dataSum, color=color, drawstyle='steps-mid', label=label)
             return(dataSum)
         
         elif(method=='mean'):
             dataMean = np.nanmean(self.specMask,axis=0)      
-            plt.plot(self.wave, dataMean        , color='black', drawstyle='steps-mid')  
+            if(plot):
+                plt.plot(self.wave, dataMean        , color=color, drawstyle='steps-mid', label=label)  
             return(dataMean)
         
         elif(method=='median'):
             dataMedian = np.nanmedian(self.specMask,axis=0)    
-            plt.plot(self.wave, dataMedian, color='black', drawstyle='steps-mid')    
+            if(plot):
+                plt.plot(self.wave, dataMedian, color=color, drawstyle='steps-mid', label=label)    
             return(dataMedian)
     
 
