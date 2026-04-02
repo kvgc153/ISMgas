@@ -628,6 +628,7 @@ class kcwiRedux:
                  offset = (0,0),
                  grab=False, layer='ls-dr9',
                  autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', 
+                 offsets_arcsecond = [],
                  skymaskFilenames = None):
         """
         Args:
@@ -651,6 +652,8 @@ class kcwiRedux:
         self.resolution         = resolution
         self.search_size        = search_size
         self.offset             = offset
+        self.offsets_arcsecond  = offsets_arcsecond
+
         
         gg = GalaxyProperties(
             ra= ra,
@@ -720,8 +723,18 @@ class kcwiRedux:
             hdus = [hduRef]
  
             
-        for f in self.filenames: 
-            hdus.append(preprocess(f, slicer=self.slicer))
+        for idx,f in enumerate(self.filenames): 
+            processedHDU = preprocess(f, slicer=self.slicer)
+            if(len(self.offsets_arcsecond)>0):
+                ## Apply user supplied offsets.
+                processedHDU.header['CRVAL1'] = processedHDU.header['CRVAL1'] + self.offsets_arcsecond[idx][0]/3600.0
+                processedHDU.header['CRVAL2'] = processedHDU.header['CRVAL2'] - self.offsets_arcsecond[idx][1]/3600.0
+
+                hdus.append(processedHDU)
+
+
+            else:
+                hdus.append(processedHDU)
             
         shifted_frames, shifts, mosaic_wcs, mosaic_shape = reproject_and_mosaic(
             hdus, 
@@ -793,14 +806,22 @@ class kcwiRedux:
 
     def step2(self):
         hdus = []
-        for filename in self.filenames:
+        for idx,filename in enumerate(self.filenames): 
             processedHDU = preprocess(filename, slicer=self.slicer, cube=True) ## FLAM16 units -- default KCWI units
             # But reproject requires data to be in surface brightness units
             dx    = np.sqrt(processedHDU.header['CD1_1']**2+processedHDU.header['CD2_1']**2)*3600.
             dy    = np.sqrt(processedHDU.header['CD1_2']**2+processedHDU.header['CD2_2']**2)*3600.
             area  = dx*dy
             processedHDU.data = processedHDU.data/area
-            hdus.append(processedHDU) ## FLAM16/arcsec^2 units
+
+            if(len(self.offsets_arcsecond)>0):
+                ## Apply user supplied offsets first
+                processedHDU.header['CRVAL1'] = processedHDU.header['CRVAL1'] + self.offsets_arcsecond[idx][0]/3600.0
+                processedHDU.header['CRVAL2'] = processedHDU.header['CRVAL2'] - self.offsets_arcsecond[idx][1]/3600.0
+
+                hdus.append(processedHDU) ## FLAM16/arcsec^2 units
+            else:
+                hdus.append(processedHDU) ## FLAM16/arcsec^2 units
             
         ## If user has provided sky frames to use, we will use them to remove any sky gradients introduced from the IDL reduction
         if(self.skymaskFilenames is not None):
