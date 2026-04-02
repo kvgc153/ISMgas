@@ -626,7 +626,7 @@ class kcwiRedux:
                  filenames, slicer, 
                  search_size = 25,
                  offset = (0,0),
-                 grab=False,
+                 grab=False, layer='ls-dr9',
                  autocorrelate=True, autocorrelate_maskfile = None, correlate_mode='full', 
                  skymaskFilenames = None):
         """
@@ -655,9 +655,10 @@ class kcwiRedux:
         gg = GalaxyProperties(
             ra= ra,
             dec = dec,
-            objid = objid + "_DECALS"
+            objid = objid + "_DECALS",
+          
         )
-        gg.decalsFitsAndPng(grab=grab, pixscale = resolution.value, size=size)
+        gg.decalsFitsAndPng(grab=grab, pixscale = resolution.value, size=size,   layer = layer)
 
         ## Autocorrelate and auto align all the datcubes 
         self.autocorrelate            = autocorrelate
