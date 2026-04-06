@@ -18,7 +18,7 @@ class DoubleGaussian:
     def __init__(self, x, y, yerr, inst_sigma=1):
         '''
         x, y, yerr : required 
-        inst_sigma : (optional) minimum sigma that the spectra can resolve. Essential for derving velocity measurements
+        inst_sigma (in km/s) : (optional) minimum sigma that the spectra can resolve. Essential for derving velocity measurements
         '''
        
         self.x            = x
@@ -534,6 +534,8 @@ class DoubleGaussian:
                         color = 'purple',
                         alpha = 0.5
                     )
+                    
+        print(f"Number of fits requested: {nseeds}, Number of fits successful: {len(fitResults)}")
 
         resultsDict = {}
         for qty in qtys:
