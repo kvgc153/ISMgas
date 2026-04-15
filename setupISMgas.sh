@@ -16,4 +16,6 @@ pip install regions &&\
 pip install beautifyPlot &&\
 pip install regions &&\
 pip install reproject &&\
+pip install joblib &&\
+pip install notebook &&\
 echo "END: ISMgas environment setup complete" 
