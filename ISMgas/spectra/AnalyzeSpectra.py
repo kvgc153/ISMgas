@@ -273,6 +273,7 @@ class AnalyzeSpectra(GalaxyProperties):
             end_interp      = 2000,
             delta_interp    = 25,
             state           = 'lowion',
+            normSpectra     = True,
             normScaleFactor = 1,
             roi             = [] ):
         '''
@@ -290,18 +291,19 @@ class AnalyzeSpectra(GalaxyProperties):
             plotting       = True
         )
    
-        # Normalize all spectra using median (RUN THIS ONLY ONCE!)
-        for i in reversed(range(len(spectra_interp))):
-            median_val = np.median(spectra_interp[i])
+        if(normSpectra):
+            # Normalize all spectra using median (RUN THIS ONLY ONCE!)
+            for i in reversed(range(len(spectra_interp))):
+                median_val = np.median(spectra_interp[i])
 
-            # Multiply by normscalefactor (Default normScaleFactor=1) so this step does not do anything
-            # But this is useful when the flux is not normalized to 1 but needs manual tweaking...
-            median_val *= normScaleFactor
+                # Multiply by normscalefactor (Default normScaleFactor=1) so this step does not do anything
+                # But this is useful when the flux is not normalized to 1 but needs manual tweaking...
+                median_val *= normScaleFactor
 
-            # Divide both the spectra and the sigma by this median value
-            spectra_interp[i]   = spectra_interp[i]/median_val
-            sigma[i]            = sigma[i]/median_val
-        
+                # Divide both the spectra and the sigma by this median value
+                spectra_interp[i]   = spectra_interp[i]/median_val
+                sigma[i]            = sigma[i]/median_val
+            
         ##-- Save --##
         allLinesSpec = {
             'wav'               : wav,
