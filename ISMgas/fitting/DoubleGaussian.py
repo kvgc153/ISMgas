@@ -335,6 +335,11 @@ class DoubleGaussian:
                 v_out_deconv    = v_out
                 v1_out_deconv   = v1_out
 
+            ### Unphysical covering fraction 
+            if(A_out_deconv>1 or A1_out_deconv>1 or A_out_deconv<0 or A1_out_deconv<0):
+                print("Unphysical covering fraction obtained. Skipping this fit. ")
+                return({})
+            
             ## double gaussian function
             y00 = [ -A_out*np.exp(-0.5*(v_out -i)**2/sig_out**2) - A1_out*np.exp(-0.5*(v1_out - i)**2/sig1_out**2) + self.priors[str(constraint_option)]["cont_lvl"] for i in wav_copy]
             ## First component
@@ -343,6 +348,8 @@ class DoubleGaussian:
             y02 = [ -A1_out*np.exp(-0.5*(v1_out - i)**2/sig1_out**2) + self.priors[str(constraint_option)]["cont_lvl"] for i in wav_copy]
 
             chi_sq = np.sum(((np.array(y00)-final_profile_copy)**2)/final_error_copy**2,axis=0)
+
+                
 
 
         elif(double_gaussian==False):
@@ -370,6 +377,7 @@ class DoubleGaussian:
                 return({})
                 
 
+
             else:
                 sig_out_deconv  = np.sqrt(sig_out**2 - self.inst_sigma**2)
                 sig1_out_deconv = 0
@@ -380,6 +388,11 @@ class DoubleGaussian:
                 v_out_deconv    = v_out
                 v1_out_deconv   = 0
 
+
+            ### Unphysical covering fraction 
+            if(A_out_deconv>1 or A_out_deconv<0):
+                print("Unphysical covering fraction obtained. Skipping this fit. ")
+                return({})
 
             ## double gaussian function
             y00 = [ -A_out*np.exp(-0.5*(v_out -i)**2/sig_out**2) + self.priors[str(constraint_option)]["cont_lvl"] for i in wav_copy]
