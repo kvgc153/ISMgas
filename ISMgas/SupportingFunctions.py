@@ -863,6 +863,7 @@ def airtovac(wave):
     new_wave: `astropy.units.Quantity`_
         Wavelength array corrected to vacuum wavelengths
     """
+    from astropy import units 
     # Convert to AA
     wave = wave.to(units.AA)
     wavelength = wave.value
