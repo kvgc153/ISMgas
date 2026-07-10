@@ -57,7 +57,7 @@ class Fitter:
         self.zs = zs ## Guess redshift
         self.objid = objid
 
-    def stellar1300(self, waveMin=1285, waveMax=1315, niter=250, plotting=False):
+    def stellar1300(self, waveMin=1285, waveMax=1315, niter=250, plotting=False, priors=None, method='leastsq'):
         
         mask1 = self.wave > waveMin*(1+self.zs)
         mask2 =  self.wave < waveMax*(1+self.zs)
@@ -84,7 +84,37 @@ class Fitter:
         sigma_stellar = [] ## Velocity dispersion of the stellar component  
         sigma_ism = [] ## Velocity dispersion of the ISM component
         sigma_fineem = [] ## Velocity dispersion of the fine structure component
+        
+        ## amplitudes 
+        p0 = [] ## Amplitude of Si III 1294
+        p1 = [] ## Amplitude of Si III 1296
+        p2 = [] ## Amplitude of Si III 1298
+        p3 = [] ## Amplitude of O I 1302
+        p4 = [] ## Amplitude of Si II 1304
+        p5 = [] ## Amplitude of Si II* 1309
+        p9 = [] ## Amplitude of the polynomial continuum
+        p10 = [] ## Amplitude of the polynomial continuum
 
+
+        if priors is None:
+            priors = {
+                'p0':{'value':-0.00001, 'min':-0.04, 'max':0},
+                'p1':{'value':-0.00001, 'min':-0.04, 'max':0},
+                'p2':{'value':-0.00001, 'min':-0.04, 'max':0},
+                'p3':{'value':-0.00001, 'min':-0.05,   'max':0},
+                'p4':{'value':-0.001,  'min':-0.05,   'max':0},
+                'p5':{'value':0.001,   'min':0, 'max':0.1},
+                'z1':{'value':self.zs, 'min':self.zs - 0.001, 'max':self.zs + 0.001},
+                'z2':{'value':self.zs - 0.0002, 'min':self.zs - 0.0005, 'max':self.zs + 0.0005},
+                'z3':{'value':self.zs, 'min':self.zs - 0.001, 'max':self.zs + 0.001},   
+                'sigma1':{'value':0.0001,  'min':0.0, 'max':0.0005},
+                'sigma2':{'value':0.0001,   'min':0.0, 'max':0.0005},
+                'sigma3':{'value':0.0001,   'min':0.0, 'max':0.0005},
+                'p9':{'value':0.05,   'min':-0.05, 'max':1},
+                'p10':{'value':-0.001,  'min':-1, 'max':1 }
+            }
+        else:
+            priors = priors
 
         # fits = []
         for idx in range(niter):
@@ -98,24 +128,24 @@ class Fitter:
 
                 # Set up lmfit Parameters
                 params = Parameters()
-                params.add('p0', value=-0.00001, min=-0.04, max=0)
-                params.add('p1', value=-0.0001, min=-0.04, max=0)
-                params.add('p2', value=-0.00001, min=-0.04, max=0)
-                params.add('p3', value=-0.00001, min=-0.05,   max=0)
-                params.add('p4', value=-0.001,  min=-0.05,   max=0)
-                params.add('p5', value=0.001,   min=0, max=0.1)
+                params.add('p0', value=priors['p0']['value'], min=priors['p0']['min'], max=priors['p0']['max'])
+                params.add('p1', value=priors['p1']['value'], min=priors['p1']['min'], max=priors['p1']['max'])
+                params.add('p2', value=priors['p2']['value'], min=priors['p2']['min'], max=priors['p2']['max'])
+                params.add('p3', value=priors['p3']['value'], min=priors['p3']['min'], max=priors['p3']['max'])
+                params.add('p4', value=priors['p4']['value'], min=priors['p4']['min'], max=priors['p4']['max'])
+                params.add('p5', value=priors['p5']['value'], min=priors['p5']['min'], max=priors['p5']['max'])
                 
-                params.add('z1', value=self.zs, min=self.zs - 0.001, max=self.zs + 0.001)
-                params.add('z2', value=self.zs - 0.0002, min=self.zs - 0.002, max=self.zs + 0.002)
-                params.add('z3', value=self.zs, min=self.zs - 0.001, max=self.zs + 0.001)
+                params.add('z1', value=priors['z1']['value'], min=priors['z1']['min'], max=priors['z1']['max'])
+                params.add('z2', value=priors['z2']['value'], min=priors['z2']['min'], max=priors['z2']['max'])
+                params.add('z3', value=priors['z3']['value'], min=priors['z3']['min'], max=priors['z3']['max'])
                 
-                params.add('sigma1', value=0.00015,  min=0.0, max=0.0005)
-                params.add('sigma2', value=0.0003,   min=0.0, max=0.0005)
-                params.add('sigma3', value=0.00015,   min=0.0, max=0.0005)
+                params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
+                params.add('sigma2', value=priors['sigma2']['value'], min=priors['sigma2']['min'], max=priors['sigma2']['max'])
+                params.add('sigma3', value=priors['sigma3']['value'], min=priors['sigma3']['min'], max=priors['sigma3']['max'])
 
-                params.add('p9',  value=0.05,   min=-0.05, max=1)
-                params.add('p10', value=-0.001, min=-1, max=1)
-                
+                params.add('p9',  value=priors['p9']['value'], min=priors['p9']['min'], max=priors['p9']['max'])
+                params.add('p10', value=priors['p10']['value'], min=priors['p10']['min'], max=priors['p10']['max'])
+
                 # x and y data
                 xdata = wave_masked * 1e-4
                 ydata = ydata
@@ -126,6 +156,7 @@ class Fitter:
                     ydata,
                     params,
                     x=xdata,
+                    method = method
                 )
 
                 # Best-fit values
@@ -137,6 +168,15 @@ class Fitter:
                 sigma_ism.append(result.params['sigma2'].value)
                 sigma_fineem.append(result.params['sigma3'].value)
                 zfineem.append(result.params['z3'].value)
+                
+                p0.append(result.params['p0'].value)
+                p1.append(result.params['p1'].value)
+                p2.append(result.params['p2'].value)
+                p3.append(result.params['p3'].value)
+                p4.append(result.params['p4'].value)
+                p5.append(result.params['p5'].value)
+                p9.append(result.params['p9'].value)
+                p10.append(result.params['p10'].value)
 
                 # fits.append( stel1296_complex_model(wave_masked* 1e-4, *[result.params[name].value for name in result.params]))
                 if(plotting):
@@ -145,8 +185,8 @@ class Fitter:
                         stel1296_complex_model(wave_masked* 1e-4, *[result.params[name].value for name in result.params]),
                         lw=0.5,
                         alpha = 0.3,
-                        c='r',
-                        # drawstyle='steps-mid'
+                        color='cornflowerblue',
+                        drawstyle='steps-mid'
                     )
 
 
@@ -161,6 +201,27 @@ class Fitter:
         sigma_stellar, sigma_stellar_std = plotHistogram(sigma_stellar, plotting=False)
         sigma_ism, sigma_ism_std         = plotHistogram(sigma_ism, plotting=False)
         sigma_fineem, sigma_fineem_std   = plotHistogram(sigma_fineem, plotting=False)
+        
+        ## Amplitudes
+        p0_med, p0_std                   = plotHistogram(p0, plotting=False)
+        p1_med, p1_std                   = plotHistogram(p1, plotting=False)
+        p2_med, p2_std                   = plotHistogram(p2, plotting=False)
+        p3_med, p3_std                   = plotHistogram(p3, plotting=False)
+        p4_med, p4_std                   = plotHistogram(p4, plotting=False)
+        p5_med, p5_std                   = plotHistogram(p5, plotting=False)
+        p9_med, p9_std                   = plotHistogram(p9, plotting=False)
+        p10_med, p10_std                 = plotHistogram(p10, plotting=False)
+        
+        
+        ## Plot the best-fit model
+        if(plotting):
+            plt.plot(
+                wave_masked,
+                stel1296_complex_model(wave_masked* 1e-4, p0_med, p1_med, p2_med, p3_med, p4_med, p5_med, zstellar_med, zism_med, zfineem_med, sigma_stellar, sigma_ism, sigma_fineem, p9_med, p10_med),
+                lw=3,
+                c='red',
+                drawstyle='steps-mid'
+            )
 
         results = {
             'zstars':[zstellar_med, zstellar_std],
@@ -170,9 +231,20 @@ class Fitter:
             'sigma_stellar':[sigma_stellar, sigma_stellar_std],
             'sigma_ism':[sigma_ism, sigma_ism_std],
             'sigma_fineem':[sigma_fineem, sigma_fineem_std],
+            
+            'p0':[p0_med, p0_std],
+            'p1':[p1_med, p1_std],
+            'p2':[p2_med, p2_std],
+            'p3':[p3_med, p3_std],
+            'p4':[p4_med, p4_std],
+            'p5':[p5_med, p5_std],
+            'p9':[p9_med, p9_std],
+            'p10':[p10_med, p10_std],
 
             'wave':wave_masked,
             'flux':flux_masked,
-            'err':err_masked
+            'err':err_masked,
+            'fit': stel1296_complex_model(wave_masked* 1e-4, p0_med, p1_med, p2_med, p3_med, p4_med, p5_med, zstellar_med, zism_med, zfineem_med, sigma_stellar, sigma_ism, sigma_fineem, p9_med, p10_med),
+
         }
         return results
