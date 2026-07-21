@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np  
 from ISMgas.linelist import linelist_highz
 from ISMgas.SupportingFunctions import plotHistogram
+from ISMgas.globalVars import c_kms
 from lmfit import Parameters, Model
 import multiprocessing as mp
 import time
@@ -56,6 +57,37 @@ def stel1296_complex_model(x, p0, p1, p2, p3, p4, p5, p6, z1, z2, z3, sigma1,sig
     return y1294 + y1296_ciii +  y1296 + y1298 + y1302 + y1304 + y1309 + poly_cont
 
 
+def neb1908_complex_model(x, p0, p1, p2, p3, z1, sigma1):
+    """C III] 1907 + C III] 1909 emission line complex model with polynomial continuum. The model includes the following emission lines:
+    - C III] 1907
+    - C III] 1909
+
+    Args:
+        x (_type_): _description_
+        p0 (_type_): _description_
+        p1 (_type_): _description_
+        p2 (_type_): _description_
+        p3 (_type_): _description_
+        z1 (_type_): _description_
+        z2 (_type_): _description_
+        sigma1 (_type_): _description_
+        sigma2 (_type_): _description_
+        p4 (_type_): _description_
+        p5 (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    zstar = 1. + z1
+
+    y1907 = p0 * np.exp(-0.5 * ((x - zstar * linelist_highz['C III] 1907']['lambda']*1e-4) / sigma1)**2)
+    y1909 = p1 * np.exp(-0.5 * ((x - zstar * linelist_highz['C III] 1909']['lambda']*1e-4) / sigma1)**2)
+
+    poly_cont = -x**3 + p2 * x**2 + p3 * (x - (zstar * linelist_highz['C III] 1907']['lambda']*1e-4))
+
+    return y1907 + y1909 + poly_cont
+
+
 class Fitter:
     def __init__(self, wave, flux, err, zs, objid):
         self.wave = wave ## Wavelength in Angstroms
@@ -65,7 +97,7 @@ class Fitter:
         self.objid = objid
 
     def stellar1300_fitter(self, seed, waveMin=1285, waveMax=1315,  priors=None, method='basinhopping'):
-        print(f"Running seed {seed}" )
+        print(f"Running {seed}" )
         
         mask1 = self.wave > waveMin*(1+self.zs)
         mask2 =  self.wave < waveMax*(1+self.zs)
@@ -74,6 +106,7 @@ class Fitter:
         wave_masked = self.wave[mask]
         flux_masked = self.flux[mask]
         err_masked = self.err[mask]
+        
 
         if priors is None:
             priors = {
@@ -85,9 +118,9 @@ class Fitter:
                 'p5':{'value':-0.001,  'min':-0.05,   'max':0},
                 'p6':{'value':0.001,   'min':0, 'max':0.1},
                 'z1':{'value':self.zs, 'min':self.zs - 0.001, 'max':self.zs + 0.001},
-                'z2':{'value':self.zs - 0.0002, 'min':self.zs - 0.0005, 'max':self.zs + 0.0005},
+                'z2':{'value':self.zs - 0.002, 'min':self.zs - 0.005, 'max':self.zs + 0.005},
                 'z3':{'value':self.zs, 'min':self.zs - 0.001, 'max':self.zs + 0.001},   
-                'sigma1':{'value':0.0001,  'min':0.0, 'max':0.0005},
+                'sigma1':{'value':0.0001,   'min':0.0, 'max':0.0005},
                 'sigma2':{'value':0.0001,   'min':0.0, 'max':0.0005},
                 'sigma3':{'value':0.0001,   'min':0.0, 'max':0.0005},
                 'p9':{'value':0.05,   'min':-0.05, 'max':1},
@@ -277,5 +310,149 @@ class Fitter:
                 'p9': p9,
                 'p10': p10
             }          
+        }
+        return results
+
+    def neb1908_fitter(self, seed, waveMin=1890, waveMax=1920,  priors=None, method='basinhopping'):
+        print(f"Running {seed}" )
+        
+        mask1 = self.wave > waveMin*(1+self.zs)
+        mask2 =  self.wave < waveMax*(1+self.zs)
+        mask  = mask1 & mask2
+
+        wave_masked = self.wave[mask]
+        flux_masked = self.flux[mask]
+        err_masked = self.err[mask]
+        
+        if priors is None:
+            priors = {
+                'p0':{'value':0.0001, 'min':0, 'max':0.1},
+                'p1':{'value':0.0001, 'min':0, 'max':0.1},
+                'p2':{'value':-0.001, 'min':-1, 'max':1},
+                'p3':{'value':-0.001, 'min':-1, 'max':1},
+                'z1':{'value':self.zs, 'min':self.zs - 0.001, 'max':self.zs + 0.001},
+                'sigma1':{'value':0.0001,   'min':0.0, 'max':0.0005}
+            }
+        else:
+            priors = priors
+        
+        
+        np.random.seed(int(time.time()) + seed)
+        # Perturb the spectra 
+        ydata = flux_masked + np.array([
+            np.random.uniform(low=-i, high=i) for i in err_masked
+        ])*1
+        
+        try:
+            
+            # Set up lmfit Parameters
+            params = Parameters()
+            params.add('p0', value=priors['p0']['value'], min=priors['p0']['min'], max=priors['p0']['max'])
+            params.add('p1', value=priors['p1']['value'], min=priors['p1']['min'], max=priors['p1']['max'])
+            params.add('p2', value=priors['p2']['value'], min=priors['p2']['min'], max=priors['p2']['max'])
+            params.add('p3', value=priors['p3']['value'], min=priors['p3']['min'], max=priors['p3']['max'])
+
+            params.add('z1', value=priors['z1']['value'], min=priors['z1']['min'], max=priors['z1']['max'])
+            
+            params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
+
+            # x and y data
+            xdata = wave_masked * 1e-4
+            ydata = ydata
+            
+            # Fit
+            model = Model(neb1908_complex_model)
+            result = model.fit(
+                ydata,
+                params,
+                x=xdata,
+                method = method
+            )
+            return result
+        except RuntimeError:
+            print("run failed")
+            return None
+        
+    def neb1908(self, niter=250, waveMin=1890, waveMax=1920, plotting=False, priors=None, method='basinhopping'):
+        zneb = [] ## Redshift of the nebular component
+        sigma_neb = [] ## Velocity dispersion of the nebular component  
+        
+        ## amplitudes 
+        p0 = [] ## Amplitude of C III] 1907
+        p1 = [] ## Amplitude of C III] 1909
+        p2 = [] ## Amplitude of the polynomial continuum
+        p3 = [] ## Amplitude of the polynomial continuum
+        
+        ## multiprocessing
+        cpu_count = mp.cpu_count()
+        pool = mp.Pool(processes=cpu_count-1)
+        ## pass all the arguments to the fitter function and run in parallel
+        fits = pool.starmap(self.neb1908_fitter, [(i, waveMin, waveMax,  priors, method) for i in range(niter)])
+        
+        ## Collect results
+        for idx, result in enumerate(fits):
+            if result is None:
+                continue
+            else:                
+                zneb.append(result.params['z1'].value)
+                sigma_neb.append(result.params['sigma1'].value)
+                
+                p0.append(result.params['p0'].value)
+                p1.append(result.params['p1'].value)
+                p2.append(result.params['p2'].value)
+                p3.append(result.params['p3'].value)
+                
+        zneb_med, zneb_std       = plotHistogram(zneb, plotting=False)
+        sigma_neb, sigma_neb_std = plotHistogram(sigma_neb, plotting=False)
+        p0_med, p0_std           = plotHistogram(p0, plotting=False)
+        p1_med, p1_std           = plotHistogram(p1, plotting=False)
+        p2_med, p2_std           = plotHistogram(p2, plotting=False)
+        p3_med, p3_std           = plotHistogram(p3, plotting=False)
+        
+        mask1 = self.wave > waveMin*(1+self.zs)
+        mask2 =  self.wave < waveMax*(1+self.zs)
+        mask  = mask1 & mask2
+        wave_masked = self.wave[mask]
+        flux_masked = self.flux[mask]
+        err_masked = self.err[mask]
+        
+        if(plotting):
+            plt.figure(figsize=(10, 6), dpi=150)
+            plt.plot(
+                wave_masked,
+                flux_masked,
+                lw=3,
+                c='black',
+                drawstyle='steps-mid'
+            )
+            plt.plot(
+                wave_masked,
+                neb1908_complex_model(wave_masked* 1e-4, p0_med, p1_med, p2_med, p3_med, zneb_med, sigma_neb),
+                lw=3,
+                c='red',
+                drawstyle='steps-mid'
+            )
+
+        results = {
+            'best_fit':{
+                'zneb':[zneb_med, zneb_std],
+                'sigma_neb':[sigma_neb, sigma_neb_std],
+                'p0':[p0_med, p0_std],
+                'p1':[p1_med, p1_std],
+                'p2':[p2_med, p2_std],
+                'p3':[p3_med, p3_std],
+                'wave':wave_masked,
+                'flux':flux_masked,
+                'err':err_masked,
+                'fit': neb1908_complex_model(wave_masked* 1e-4, p0_med, p1_med, p2_med, p3_med, zneb_med, sigma_neb),
+            },
+            'all_fits':{
+                'zneb': zneb,
+                'sigma_neb': sigma_neb,
+                'p0': p0,
+                'p1': p1,
+                'p2': p2,
+                'p3': p3
+            }
         }
         return results
