@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np  
 from ISMgas.linelist import linelist_highz
-from ISMgas.SupportingFunctions import plotHistogram
+from ISMgas.SupportingFunctions import plotHistogram, plotWithError
 from ISMgas.globalVars import c_kms
 from lmfit import Parameters, Model
 import multiprocessing as mp
@@ -253,13 +253,7 @@ class Fitter:
         
         ## Plot the best-fit model
         if(plotting):
-            plt.plot(
-                wave_masked,
-                flux_masked,
-                lw=3,
-                c='black',
-                drawstyle='steps-mid'
-            )
+            plotWithError(wave_masked, flux_masked, err_masked)
             plt.plot(
                 wave_masked,
                 stel1296_complex_model(wave_masked* 1e-4, p0_med, p1_med, p2_med, p3_med, p4_med, p5_med, p6_med, zstellar_med, zism_med, zfineem_med, sigma_stellar, sigma_ism, sigma_fineem, p9_med, p10_med),
