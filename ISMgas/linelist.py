@@ -32,6 +32,8 @@ linelist_highz = {
     'Si II 1808'  : {'pltLabel':'Si-II'     ,"state":"opthin","lambda": 1808.0130, "opthin": True, "plot": True, "emission": False, "comments":'', "fion": 0.002186  },
 
     ### High ionization lines - from http://www.ucolick.org/~xavier/DLA/Kingpin/atomic.dat ########
+    'N V 1238'      : {'pltLabel': 'N-V'      ,"state":"highion","lambda": 1238.804 , "highion": True, "plot": True, "emission": False, "comments":'', "fion": -1},
+    'N V 1242'      : {'pltLabel': ''         ,"state":"highion","lambda": 1242.795 , "highion": True, "plot": True, "emission": False, "comments":'', "fion": -1}, 
     'Si IV 1393'    : {'pltLabel': 'Si-IV'    ,"state":"highion","lambda": 1393.755 , "highion": True, "plot": True, "emission": False, "comments":'', "fion": 0.5280  },
     'Si IV 1402'    : {'pltLabel': 'SI-IV'    ,"state":"highion","lambda": 1402.770 , "highion": True, "plot": True, "emission": False, "comments":'', "fion": 0.2620  },
     'C IV  1548'    : {'pltLabel': 'C-IV'     ,"state":"highion","lambda": 1548.195 , "highion": True, "plot": True, "emission": False, "comments":'', "fion": 0.19080 },
