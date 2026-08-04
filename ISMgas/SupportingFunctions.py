@@ -177,6 +177,31 @@ def makeMedianFolder(folder,objid,crRayClean=False):
     hdu.writeto(folder+objid+"_median.fits",overwrite=True)
 
 
+def redshiftToVelocity(zArr, zsys):
+    """Given an array of redshifts, compute the velocity offset in km/s in the rest frame
+
+    Args:
+        zArr (np.array): Redshift array
+        zsys (np.float): Systemic redshift
+
+    Returns:
+        velArr (np.array): Velocity array
+    """
+    vel_kms = c_kms*((np.asarray(zArr)-zsys)/(1+zsys))
+    return vel_kms
+
+def dispersionAngToVelocity(dispersionAng, lambda0):
+    """Given a dispersion in rest frame Angstroms, compute the velocity dispersion in km/s
+    Args:
+        dispersionAng (np.array): Dispersion in Angstroms
+        lambda0 (np.float): Rest frame wavelength
+    Returns:
+        velDispersion (np.array): Velocity dispersion in km/s
+    """
+    velDispersion = c_kms*(dispersionAng/lambda0)
+    return velDispersion
+    
+    
 ############
 ### Math ###
 ############
