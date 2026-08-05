@@ -4,6 +4,12 @@ from astropy.convolution import convolve, Gaussian1DKernel
 
 from humvi import compose 
 
+from astropy.io import fits
+from astropy.wcs import WCS
+from astroquery.sdss import SDSS
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+
 from ISMgas.linelist import linelist_SDSS
 from ISMgas.SupportingFunctions import *
 
@@ -140,6 +146,55 @@ class GalaxyProperties:
             with open("%s_HST_fitscgi.fits"%(self.objid),'wb') as foo_HST_fits:
                 foo_HST_fits.write(foo_HST.content)
 
+
+    def get_sdss_images(self, radius=5*u.arcsec, bands=("u", "g", "r", "i", "z")):
+        """
+        Download SDSS corrected frame images around (RA, Dec).
+
+        Parameters
+        ----------
+        ra, dec : float
+            Coordinates in degrees.
+        radius : astropy Quantity
+            Search radius.
+        bands : iterable
+            SDSS filters to download.
+
+        Returns
+        -------
+        images : dict
+            Dictionary keyed by filter containing:
+            {
+                'data': image array,
+                'header': FITS header,
+                'wcs': WCS object
+            }
+        """
+
+        coord = SkyCoord(self.ra, self.dec, unit="deg")
+
+        images = {}
+
+        for band in bands:
+            hdul = SDSS.get_images(
+                coordinates=coord,
+                radius=radius,
+                band=band
+            )
+
+            if hdul is None or len(hdul) == 0:
+                print(f"No {band}-band image found.")
+                continue
+
+            hdu = hdul[0][0]
+
+            images[band] = {
+                "data": hdu.data.astype(float),
+                "header": hdu.header,
+                "wcs": WCS(hdu.header),
+            }
+
+        return images
 
     def SDSS_spectra(self,index=0,search_min=0.0005, search_max=0.0005, ylim = [-1,5]):
         '''
