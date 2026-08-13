@@ -64,8 +64,8 @@ class GalaxyProperties:
                 params = {
                     'ra'          : kwargs.get('ra',self.ra),
                     'dec'         : kwargs.get('dec',self.dec),
-                    'pixscale'    : kwargs.get('pixscale',0.257),
-                    'layer'       : kwargs.get('layer','ls-dr9'),
+                    'pixscale'    : kwargs.get('pixscale',0.262),
+                    'layer'       : kwargs.get('layer','ls-dr11'),
                     'size'        : kwargs.get('size', 100)
                     },
                 )
@@ -85,7 +85,19 @@ class GalaxyProperties:
                 hdu.writeto("%s_%s.fits"%(self.objid,i),overwrite=True)
                 count       += 1
 
+        if(grab==False):
+            filename    = "%s.fits"%(self.objid)
+            data        = fits.getdata(filename)
+            hdr         = fits.getheader(filename)
 
+        ## Make dictionary of the bands 
+        imageDict = {}
+        for i in [hdr['BAND0'],hdr['BAND1'],hdr['BAND2']]:
+            imageDict[i] = {
+                'data':fits.getdata("%s_%s.fits"%(self.objid,i)),
+                'header':fits.getheader("%s_%s.fits"%(self.objid,i))
+            }   
+            
         ## Make png image from decals image ##
         rscale, gscale, bscale    = kwargs.get('scale', [1,1.5,3])
         Q,alpha                   = kwargs.get('q_alpha', [1,15])
@@ -113,6 +125,7 @@ class GalaxyProperties:
             vb            = vb,
             outfile       = outfile
         )
+        return imageDict
 
     def fitscgi_HST(self, **kwargs):
         getVars = {
