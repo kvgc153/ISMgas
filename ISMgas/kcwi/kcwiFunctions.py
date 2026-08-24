@@ -29,9 +29,11 @@ class kcwiAnalysis():
 
         self.hdr = fits.getheader(self.fileName)
         self.dataCube = fits.getdata(self.fileName)
-        self.error1D  = fits.getdata(self.errorFile) 
-        ## Checks 
-        assert len(self.error1D) == self.hdr['NAXIS3'], "Error: the lenght of error spectrum and wavelength axis of datacube do not match."
+        
+        if(self.errorFile != ''):
+            ## Checks 
+            self.error1D  = fits.getdata(self.errorFile) 
+            assert len(self.error1D) == self.hdr['NAXIS3'], "Error: the lenght of error spectrum and wavelength axis of datacube do not match."
             
         try:
             self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CDELT3'] + self.hdr['CRVAL3']
