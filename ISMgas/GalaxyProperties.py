@@ -9,6 +9,13 @@ from astropy.wcs import WCS
 from astroquery.sdss import SDSS
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+from astropy.wcs.utils import proj_plane_pixel_scales
+
+import numpy as np 
+import matplotlib.pyplot as plt
+from photutils.aperture import CircularAperture, aperture_photometry, ApertureStats
+from ISMgas.visualization.fits import ScaleImage
+
 
 from ISMgas.linelist import linelist_SDSS
 from ISMgas.SupportingFunctions import *
@@ -95,7 +102,8 @@ class GalaxyProperties:
         for i in [hdr['BAND0'],hdr['BAND1'],hdr['BAND2']]:
             imageDict[i] = {
                 'data':fits.getdata("%s_%s.fits"%(self.objid,i)),
-                'header':fits.getheader("%s_%s.fits"%(self.objid,i))
+                'header':fits.getheader("%s_%s.fits"%(self.objid,i)),
+                'wcs':WCS(fits.getheader("%s_%s.fits"%(self.objid,i)))
             }   
             
         ## Make png image from decals image ##
@@ -315,3 +323,206 @@ class GalaxyProperties:
         ## Save 
         plt.tight_layout()
         plt.savefig(f"{self.objid}-SDSS_spectra.png")
+        
+        
+    @staticmethod
+    def aperture_ab_magnitudes(images, ra, dec, radius_arcsec=2.0, survey='sdss'):
+        """
+        Measure circular aperture photometry using an aperture radius
+        specified in arcseconds.
+
+        Parameters
+        ----------
+        images : dict
+            Output of get_sdss_images().
+        ra, dec : float
+            Coordinates in degrees.
+        radius_arcsec : float
+            Aperture radius in arcseconds.
+
+        Returns
+        -------
+        dict
+            Fluxes and AB magnitudes in each SDSS band.
+        """
+
+        coord = SkyCoord(ra, dec, unit="deg")
+        results = {}
+
+        for band, img in images.items():
+
+            data = img["data"]
+            hdr = img["header"]
+            wcs = img["wcs"]
+
+            # Source position
+            x, y = wcs.world_to_pixel(coord)
+
+            # Pixel scale (arcsec/pixel) - CHANGE!!
+            pixscale = (
+                np.mean(proj_plane_pixel_scales(wcs))
+                * u.deg
+            ).to(u.arcsec).value
+
+            # Aperture radius in pixels
+            radius_pix = radius_arcsec / pixscale
+
+            aperture = CircularAperture((x, y), r=radius_pix)
+            phot = aperture_photometry(data, aperture)
+            photStats = ApertureStats(data, aperture)
+
+            plt.figure()
+            ScaleImage(data, scale_kwargs={'percentile':99.4}).plot()
+            aperture.plot(color='cyan')
+            plt.xlim([x-20, x+20])
+            plt.ylim([y-20,y+20])
+            plt.show()
+
+            counts = phot["aperture_sum"][0]
+
+            if(survey == "sdss"):
+                if counts <= 0:
+                    mag = np.nan
+                else:
+                    mag = -2.5 * np.log10(counts) + 22.5
+        
+        
+                results[band] = {
+                    "x": x,
+                    "y": y,
+                    "flux": counts,
+                    "mag_ab": mag,
+                    "radius_pix": radius_pix,
+                    "pixel_scale": pixscale,
+                    'aperture_stats':{
+                        "mean_flux": photStats.mean,
+                        "median_flux": photStats.median,
+                        "std_flux": photStats.std,
+                        "sum_flux": photStats.sum, ## should be same as flux
+                        "npix": photStats.sum/photStats.mean
+                    } 
+                }
+
+
+            if(survey == "decals"):
+                if counts <= 0:
+                    mag = np.nan
+                else:
+                    mag = -2.5 * np.log10(counts) + 22.5
+        
+                results[band] = {
+                    "x": x,
+                    "y": y,
+                    "flux": counts,
+                    "mag_ab": mag,
+                    "radius_pix": radius_pix,
+                    "pixel_scale": pixscale,
+                    'aperture_stats':{
+                        "mean_flux": photStats.mean,
+                        "median_flux": photStats.median,
+                        "std_flux": photStats.std,
+                        "sum_flux": photStats.sum, ## should be same as flux
+                        "npix": photStats.sum/photStats.mean
+
+                    } 
+                }
+
+        return results
+    
+    @staticmethod
+    def aperture_photometry_hst(
+        image_file,
+        ra,
+        dec,
+        radius_arcsec,
+        ext=1,
+    ):
+        """
+        Measure circular aperture photometry on an HST drizzled image.
+
+        Parameters
+        ----------
+        image_file : str
+            FITS image filename.
+        ra, dec : float
+            Sky coordinates in degrees (ICRS).
+        radius_arcsec : float
+            Aperture radius in arcseconds.
+        ext : int, optional
+            FITS extension containing the science image (default=1, typical
+            for HST drizzled products).
+
+        Returns
+        -------
+        result : dict
+            Dictionary containing:
+                x, y           Pixel coordinates
+                radius_pix     Aperture radius in pixels
+                aperture_sum   Total counts in the aperture
+        """
+
+        with fits.open(image_file) as hdul:
+            data = hdul[ext].data
+            header = hdul[ext].header
+
+        wcs = WCS(header)
+
+        # Sky -> pixel
+        skycoord = SkyCoord(ra*u.deg, dec*u.deg)
+        x, y = skycoord.to_pixel(wcs)
+
+        # Pixel scale (arcsec/pixel)
+        pixel_scale = np.mean(proj_plane_pixel_scales(wcs)) * 3600.0
+
+        # Aperture radius in pixels
+        radius_pix = radius_arcsec / pixel_scale
+
+        # Aperture photometry
+        aperture = CircularAperture((x, y), r=radius_pix)
+        phot = aperture_photometry(data, aperture)
+        photStats = ApertureStats(data, aperture)
+        flux = phot["aperture_sum"][0]  # electrons/s
+
+        # Compute AB zeropoint
+        photflam = header["PHOTFLAM"]
+        photplam = header["PHOTPLAM"]
+
+        zp_ab = (
+            -2.5 * np.log10(photflam) - 21.10 
+            - 5.0 * np.log10(photplam) + 18.692
+        )
+        if flux > 0:
+            # AB magnitude
+            mag_ab = zp_ab - 2.5 * np.log10(flux)
+
+        else:
+            mag_ab = np.nan
+
+
+        plt.figure()
+        ScaleImage(data, scale_kwargs={'percentile':99.4}).plot()
+        aperture.plot(color='cyan')
+        # plt.contour(aperture.to_mask(), levels=[0.5], color='red')
+        plt.xlim([x-100, x+100])
+        plt.ylim([y-100,y+100])
+        plt.show()
+        
+        return {
+            "x": x,
+            "y": y,
+            "flux": flux,                 # electrons/s
+            "nanomaggy": 10 ** (0.4 * (22.5 - mag_ab)),
+            "nanomaggy_err": 10 ** (0.4 * (22.5 - mag_ab)) * (photStats.std / flux) if flux > 0 else np.nan, ## CHECK!!
+            "mag_ab": mag_ab,
+            "radius_pix": radius_pix,
+            "pixel_scale": pixel_scale,   # arcsec/pixel
+            "zp_ab": zp_ab,
+            'aperture_stats': {
+                "mean_flux": photStats.mean,
+                "median_flux": photStats.median,
+                "std_flux": photStats.std,
+                "sum_flux": photStats.sum, ## should be same as flux
+                "npix": photStats.sum/photStats.mean
+            } 
+        }
+

@@ -22,12 +22,17 @@ class kcwiAnalysis():
         # GalaxyProperties.__init__(self,**kwargs)
 
         self.fileName = kwargs.get('filename','')
+        self.errorFile = kwargs.get('errorfile','') ## This is a 1D error spectrum computed by kvgc's routine.
         self.maskFile  = kwargs.get('maskfile','')
         self.varFile   = kwargs.get('varfile','')
         self.objid    = kwargs.get('objid','')
 
         self.hdr = fits.getheader(self.fileName)
         self.dataCube = fits.getdata(self.fileName)
+        self.error1D  = fits.getdata(self.errorFile) 
+        ## Checks 
+        assert len(self.error1D) == self.hdr['NAXIS3'], "Error: the lenght of error spectrum and wavelength axis of datacube do not match."
+            
         try:
             self.wave    = (np.arange(self.hdr['NAXIS3']) - self.hdr['CRPIX3'] + 1) * self.hdr['CDELT3'] + self.hdr['CRVAL3']
             if(self.hdr['CUNIT3'] == 'Angstrom'):
