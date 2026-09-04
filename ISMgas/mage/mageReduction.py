@@ -112,8 +112,6 @@ class mageRedux:
             extractSpec = np.nansum(data*trace2D, axis=0) 
             extractErr  = np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
 
-    
-
 
             if(plotting):
                 plt.figure(figsize=(12,7))
@@ -163,7 +161,7 @@ class mageRedux:
         # Save the extracted spectra 
         save_as_pickle(extracted_spectra, objid + "_extracted.pkl")
     
-    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None]):
+    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None], clip_echelle_edges=True):
         """
         Given a object extracted and a standard star extracted pickle files, 
         flux calibrate the data.
@@ -198,7 +196,7 @@ class mageRedux:
                         
             corrected_flux = obj_flux * std_invsens_interp
             corrected_error = obj_error * std_invsens_interp
-            
+
             corrected_spec[order] = {
                 "wave": obj_wave,
                 "flux": corrected_flux,
@@ -207,21 +205,7 @@ class mageRedux:
             }
     
             if(plotting):
-                # plt.figure(figsize=(12,7))
-                # plt.plot(
-                #     std_wave,
-                #     std_flux,
-                #     color='black',
-                #     drawstyle='steps-mid'
-                # )
-                # plt.plot(
-                #     std_wave,
-                #     std_continuum,
-                #     color='red',
-                #     drawstyle='steps-mid'
-                # )
-                # plt.xlim([std_wave[0], std_wave[-1]])
-                # plt.show()     
+  
             
                 plt.figure(figsize=(12,7))
                 plt.plot(
