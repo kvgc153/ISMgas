@@ -113,6 +113,7 @@ class mageRedux:
             extractErr  = np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
 
 
+
             if(plotting):
                 plt.figure(figsize=(12,7))
                 plt.plot(
@@ -161,7 +162,7 @@ class mageRedux:
         # Save the extracted spectra 
         save_as_pickle(extracted_spectra, objid + "_extracted.pkl")
     
-    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None], clip_echelle_edges=True):
+    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None], clip_echelle_edges=True, sigma_threshold=1):
         """
         Given a object extracted and a standard star extracted pickle files, 
         flux calibrate the data.
@@ -192,10 +193,39 @@ class mageRedux:
                 (obj_wave <= std_wave.max())
             )
             std_invsens_interp = interpolateData(x=std_wave,y=std_inv_sensitivity,xnew=obj_wave, fill_value='extrapolate')
-            std_invsens_interp = medfilt(std_invsens_interp, kernel_size=31) ## Smooth out any artifacts
+            std_invsens_interp = medfilt(std_invsens_interp, kernel_size=101) ## Smooth out any artifacts
                         
             corrected_flux = obj_flux * std_invsens_interp
             corrected_error = obj_error * std_invsens_interp
+
+            ## plot inv_sens curve
+            plt.figure(figsize=(12,5))
+            plt.plot(obj_wave,corrected_flux,color='black',drawstyle='steps-mid' )
+
+            if(clip_echelle_edges):
+                threshold = np.nanmedian(std_invsens_interp,axis=0) + sigma_threshold*np.nanstd(std_invsens_interp, axis=0)
+                mask_invsens    = (std_invsens_interp<threshold) ## Apply threshold to clip the edges of the echelle orders 
+                obj_wave        = obj_wave[mask_invsens]
+                corrected_flux  = corrected_flux[mask_invsens]
+                corrected_error = corrected_error[mask_invsens]
+                std_invsens_interp = std_invsens_interp[mask_invsens]
+
+                if(obj_wave[0]<4500): 
+                    ## Further trim the edges in the bluer orders
+                    startIdx= 200
+                    endIdx  = -200
+                    obj_wave = obj_wave[startIdx:endIdx]
+                    corrected_flux = corrected_flux[startIdx:endIdx]
+                    corrected_error = corrected_error[startIdx:endIdx]
+                    std_invsens_interp = std_invsens_interp[startIdx:endIdx]
+
+
+                print(len(obj_wave), len(corrected_flux),len(std_invsens_interp))
+
+            plt.plot(obj_wave,corrected_flux,color='red',drawstyle='steps-mid', label='clipped' )
+            plt.ylim([0,np.nanmedian(corrected_flux) + np.nanstd(corrected_flux)])
+            # plt.xlim([obj_wave[0], obj_wave[-1]])
+            plt.show()
 
             corrected_spec[order] = {
                 "wave": obj_wave,
