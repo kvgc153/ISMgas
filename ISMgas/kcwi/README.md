@@ -64,3 +64,28 @@ obj.step2()
 **Step 2** 
 - Reprojects all the datacubes using the `reproject` package to the chosen pixelsize.
 - The final datacubes are aligned to the DECaLS image and combined using a mean. The final datacube has the filename - `{objid}_{slicer}_combined.fits`
+
+
+
+#### What if autocorrelation fails to align the cubes?
+
+There are a few rare instances wherein the autocorrelation between the cubes fails. While the origins of this issue remain unknown, we outline a fix if you run into this issue.
+
+- Run the kcwiRedux with autocorrelate=False and stop the pipeline once it generates a _shifts.fits file 
+- Open the _shift.fits file and document the offset between the frames manually in arcseconds
+- Include these offsets as initial starting points for the crr algorithm. 
+
+For example 
+```python
+
+obj  = kcwiRedux(
+    objid, 
+    ra, dec, 
+    resolution, size, 
+    filenames, 
+    slicer, 
+    autocorrelate=True, 
+    offsets_arcsecond =[(0.4,2.3), (0.4,2.3), (2.6,0.1),(2.6,0.1), ], ## OFFSETS
+    search_size=5 ## OPTIONAL - search size 
+)
+'''
