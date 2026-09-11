@@ -938,8 +938,23 @@ def vactoair(wave):
     return new_wave
 
 
-def overlayAllLines(zfactor =1, lowion=True, highion=True, opthin=True, stellar=True, nebem=True, fineem=True, scaleAlpha = 1,ylims=[0,1], linewidth=1 ):
+def overlayAllLines(zfactor =1, lowion=True, highion=True, opthin=True, stellar=True, nebem=True, fineem=True, scaleAlpha = 1,ylims=[0,1], linewidth=1, cgm=False, ism_simple=False):
     ## zfactor  = (1+zs)/(1+zinterving) -- zfactor = 1 for zinterving = zs
+    if(cgm==True):
+        lowion= True
+        highion= True
+        opthin= False
+        stellar= False
+        nebem= False
+        fineem= False
+        
+    if(ism_simple==True):
+        lowion= True
+        highion= True
+        opthin= False
+        stellar= False
+        nebem= True
+        fineem= False
     
     for i in linelist_highz.keys():
         if(linelist_highz[i].get('lowion') is not None and lowion==True):
