@@ -1227,53 +1227,6 @@ def runningMedian(x,y,nbins):
     return(bins-delta/2,running_median)
 
 
-## Bagpipes ## 
-
-def add_photometry_posterior_kvgc(fit, ax, zorder=4, y_scale=None, color1=None,
-                             color2=None, skip_no_obs=False,
-                             background_spectrum=True, label=None):
-
-    if color1 == None:
-        color1 = "navajowhite"
-
-    if color2 == None:
-        color2 = "darkorange"
-
-    mask = (fit.galaxy.photometry[:, 1] > 0.)
-    upper_lims = fit.galaxy.photometry[:, 1] + fit.galaxy.photometry[:, 2]
-    ymax = 1.05*np.max(upper_lims[mask])
-
-    if not y_scale:
-        y_scale = float(int(np.log10(ymax))-1)
-
-    # Calculate posterior median redshift.
-    if "redshift" in fit.fitted_model.params:
-        redshift = np.median(fit.posterior.samples["redshift"])
-
-    else:
-        redshift = fit.fitted_model.model_components["redshift"]
-
-    # Plot the posterior photometry and full spectrum.
-    log_wavs = np.log10(fit.posterior.model_galaxy.wavelengths*(1.+redshift))
-    log_eff_wavs = np.log10(fit.galaxy.filter_set.eff_wavs)
-
-    if background_spectrum:
-        spec_post = np.percentile(fit.posterior.samples["spectrum_full"],
-                                  (16, 84), axis=0).T*10**-y_scale
-
-        spec_post = spec_post.astype(float)  # fixes weird isfinite error
-
-        ax.fill_between(log_wavs, spec_post[:, 0], spec_post[:, 1],
-                    zorder=zorder-1, color=color1, linewidth=0)
-
-
-        ax.plot(log_wavs, spec_post[:, 0], color=color1,
-                zorder=zorder-3, label=label)
-
-        ax.plot(log_wavs, spec_post[:, 1], color=color1,
-                zorder=zorder-3)
-
-    return(fig,ax)
 ###########################
 
 
