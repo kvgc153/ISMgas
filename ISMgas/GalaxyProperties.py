@@ -511,8 +511,6 @@ class GalaxyProperties:
             "x": x,
             "y": y,
             "flux": flux,                 # electrons/s
-            "nanomaggy": 10 ** (0.4 * (22.5 - mag_ab)),
-            "nanomaggy_err": 10 ** (0.4 * (22.5 - mag_ab)) * (photStats.std / flux) if flux > 0 else np.nan, ## CHECK!!
             "mag_ab": mag_ab,
             "radius_pix": radius_pix,
             "pixel_scale": pixel_scale,   # arcsec/pixel
