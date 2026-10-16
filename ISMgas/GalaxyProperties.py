@@ -363,6 +363,8 @@ class GalaxyProperties:
                 np.mean(proj_plane_pixel_scales(wcs))
                 * u.deg
             ).to(u.arcsec).value
+            
+            print(f"Band: {band}, Pixel scale: {pixscale:.3f} arcsec/pixel")
 
             # Aperture radius in pixels
             radius_pix = radius_arcsec / pixscale
@@ -473,6 +475,8 @@ class GalaxyProperties:
 
         # Pixel scale (arcsec/pixel)
         pixel_scale = np.mean(proj_plane_pixel_scales(wcs)) * 3600.0
+        
+        print(f"Pixel scale: {pixel_scale:.3f} arcsec/pixel")
 
         # Aperture radius in pixels
         radius_pix = radius_arcsec / pixel_scale
