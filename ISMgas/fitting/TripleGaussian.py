@@ -61,10 +61,9 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
     import time 
     successful_fits =0
     for i in range(niter):
-        # --------------------------------------------------------
-        # Perturb the spectrum by its errors
-        # --------------------------------------------------------
         np.random.seed(int(time.time())+i)
+        if((i+1)%10==0):
+            print(f"Iteration {i+1}/{niter}")
         y_perturbed = ydata + np.array([np.random.uniform(low=-i,high=i) for i in ydataerr])
         
         try:
@@ -77,36 +76,16 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
     
             # Only keep successful fits
             if result_mc.success:
-    
                 successful_fits += 1
     
-                # Store parameters
                 for name in fit_results:
                     fit_results[name].append(
                         result_mc.params[name].value
                     )
-    
-                # Use this solution as starting point
-                # for the next iteration
-                current_params = result_mc.params.copy()
-    
-            print(
-                f"Iteration {i+1}/{niter} "
-                f"completed"
-            )
-    
         except Exception as e:
+            print(f"Iteration {i+1} failed: {e}")
     
-            print(
-                f"Iteration {i+1} failed: {e}"
-            )
-    
-    
-    print(
-        f"\nSuccessful fits: "
-        f"{successful_fits}/{niter}"
-    )
-    
+    print(f"\nSuccessful fits:{successful_fits}/{niter}")
     
     for name in fit_results:
         fit_results[name] = np.array(fit_results[name])
@@ -119,7 +98,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
     uncertainties = {}
     
     for name, values in fit_results.items():
-        # Median = best estimate
+        # Median, MAD
         mu,sigma = plotHistogram(values, plotting=False)
     
         best_values[name] = mu
@@ -145,11 +124,16 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
     v03 = best_values['v03']
     sigma3 = best_values['sigma3']
     
+    vfit = np.arange(-2000,2000,1)## Sampled at 1km/s for EW calculations
     
-    g1 = A1 * np.exp(-0.5 * (xdata / sigma1)**2)
-    g2 = A2 * np.exp(-0.5 * ((xdata - v02) / sigma2)**2 )
-    g3 = A3 * np.exp(-0.5 * ((xdata - v03) / sigma3)**2)
+    g1 = A1 * np.exp(-0.5 * (vfit / sigma1)**2)
+    g2 = A2 * np.exp(-0.5 * ((vfit - v02) / sigma2)**2)
+    g3 = A3 * np.exp(-0.5 * ((vfit - v03) / sigma3)**2)
     yfit_mc = 1.0 - g1 - g2 - g3
+    
+    EW_g1_kms = np.nansum(g1) * 1.0
+    EW_g2_kms = np.nansum(g2) * 1.0
+    EW_g3_kms = np.nansum(g3) * 1.0
     
     # ============================================================
     # Plot final MC best fit
@@ -170,7 +154,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             yfit_mc,
             'r-',
             linewidth=2.5,
@@ -178,7 +162,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g1,
             '--',
             linewidth=1.5,
@@ -186,7 +170,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g2,
             '--',
             linewidth=1.5,
@@ -194,7 +178,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g3,
             '--',
             linewidth=1.5,
@@ -227,7 +211,7 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             yfit_mc,
             'k-',
             linewidth=2.5,
@@ -235,21 +219,21 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g1,
             '--',
             label='Gaussian 1: $v_0=0$'
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g2,
             '--',
             label=f'Gaussian 2: $v_0={v02:.1f}$ km/s'
         )
         
         plt.plot(
-            xdata,
+            vfit,
             1.0 - g3,
             '--',
             label=f'Gaussian 3: $v_0={v03:.1f}$ km/s'
@@ -282,26 +266,23 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
                 alpha=0.75,
                 edgecolor='black'
             )
-        
-            median = np.median(values)
-            lower = np.percentile(values, 16)
-            upper = np.percentile(values, 84)
+            mu, sigma = plotHistogram(values, plotting=False)
         
             ax.axvline(
-                median,
+                mu,
                 color='red',
                 linewidth=2,
                 label='Median'
             )
         
             ax.axvline(
-                lower,
+                mu - sigma,
                 color='red',
                 linestyle='--'
             )
         
             ax.axvline(
-                upper,
+                mu + sigma,
                 color='red',
                 linestyle='--'
             )
@@ -316,8 +297,12 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         'fit_results': fit_results,
         'best_values': best_values,
         'uncertainties': uncertainties,
+        'vfit': vfit,
         'g1': g1,
         'g2': g2,
         'g3': g3,
-        'yfit_mc': yfit_mc
+        'yfit_mc': yfit_mc,
+        'EW_g1_kms': EW_g1_kms,
+        'EW_g2_kms': EW_g2_kms,
+        'EW_g3_kms': EW_g3_kms
     })
