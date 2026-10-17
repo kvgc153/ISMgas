@@ -11,7 +11,7 @@ def triple_gaussian(v, A1, sigma1, A2, v02, sigma2, A3, v03, sigma3):
     return 1.0 - g1 - g2 - g3
 
 
-def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping', plotting=True):  
+def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping', plotting=True, doubleGaussian=False):  
     fit_results = {
         'A1': [],
         'sigma1': [],
@@ -41,8 +41,13 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
     
     model = Model(triple_gaussian)
     params = Parameters()
-    params.add('A1', value=priors['A1']['value'], min=priors['A1']['min'], max=priors['A1']['max'])
-    params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
+    
+    if(doubleGaussian):
+        params.add('A1', value=0, vary=False)
+        params.add('sigma1', value=1, vary=False)
+    else:
+        params.add('A1', value=priors['A1']['value'], min=priors['A1']['min'], max=priors['A1']['max'])
+        params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
     
     params.add('A2', value=priors['A2']['value'], min=priors['A2']['min'], max=priors['A2']['max'])
     params.add('v02', value=priors['v02']['value'], min=priors['v02']['min'], max=priors['v02']['max'])
@@ -307,4 +312,12 @@ def fitTripleGaussian(priors, niter, xdata,ydata,ydataerr,method='basinhopping',
         
         plt.tight_layout()
         plt.show()
-    return([fit_results, best_values, uncertainties])
+    return({
+        'fit_results': fit_results,
+        'best_values': best_values,
+        'uncertainties': uncertainties,
+        'g1': g1,
+        'g2': g2,
+        'g3': g3,
+        'yfit_mc': yfit_mc
+    })
