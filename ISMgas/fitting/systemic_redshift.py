@@ -139,24 +139,24 @@ class Fitter:
 
             # Set up lmfit Parameters
             params = Parameters()
-            params.add('p0', value=priors['p0']['value'], min=priors['p0']['min'], max=priors['p0']['max'])
-            params.add('p1', value=priors['p1']['value'], min=priors['p1']['min'], max=priors['p1']['max'])
-            params.add('p2', value=priors['p2']['value'], min=priors['p2']['min'], max=priors['p2']['max'])
-            params.add('p3', value=priors['p3']['value'], min=priors['p3']['min'], max=priors['p3']['max'])
-            params.add('p4', value=priors['p4']['value'], min=priors['p4']['min'], max=priors['p4']['max'])
-            params.add('p5', value=priors['p5']['value'], min=priors['p5']['min'], max=priors['p5']['max'])
-            params.add('p6', value=priors['p6']['value'], min=priors['p6']['min'], max=priors['p6']['max'])
+            params.add('p0', value=np.random.uniform(low=priors['p0']['min'], high=priors['p0']['max']), min=priors['p0']['min'], max=priors['p0']['max'])
+            params.add('p1', value=np.random.uniform(low=priors['p1']['min'], high=priors['p1']['max']), min=priors['p1']['min'], max=priors['p1']['max'])
+            params.add('p2', value=np.random.uniform(low=priors['p2']['min'], high=priors['p2']['max']), min=priors['p2']['min'], max=priors['p2']['max'])
+            params.add('p3', value=np.random.uniform(low=priors['p3']['min'], high=priors['p3']['max']), min=priors['p3']['min'], max=priors['p3']['max'])
+            params.add('p4', value=np.random.uniform(low=priors['p4']['min'], high=priors['p4']['max']), min=priors['p4']['min'], max=priors['p4']['max'])
+            params.add('p5', value=np.random.uniform(low=priors['p5']['min'], high=priors['p5']['max']), min=priors['p5']['min'], max=priors['p5']['max'])
+            params.add('p6', value=np.random.uniform(low=priors['p6']['min'], high=priors['p6']['max']), min=priors['p6']['min'], max=priors['p6']['max'])
 
-            params.add('z1', value=priors['z1']['value'], min=priors['z1']['min'], max=priors['z1']['max'])
-            params.add('z2', value=priors['z2']['value'], min=priors['z2']['min'], max=priors['z2']['max'])
-            params.add('z3', value=priors['z3']['value'], min=priors['z3']['min'], max=priors['z3']['max'])
-            
-            params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
-            params.add('sigma2', value=priors['sigma2']['value'], min=priors['sigma2']['min'], max=priors['sigma2']['max'])
-            params.add('sigma3', value=priors['sigma3']['value'], min=priors['sigma3']['min'], max=priors['sigma3']['max'])
+            params.add('z1', value=np.random.uniform(low=priors['z1']['min'], high=priors['z1']['max']), min=priors['z1']['min'], max=priors['z1']['max'])
+            params.add('z2', value=np.random.uniform(low=priors['z2']['min'], high=priors['z2']['max']), min=priors['z2']['min'], max=priors['z2']['max'])
+            params.add('z3', value=np.random.uniform(low=priors['z3']['min'], high=priors['z3']['max']), min=priors['z3']['min'], max=priors['z3']['max'])
 
-            params.add('p9',  value=priors['p9']['value'], min=priors['p9']['min'], max=priors['p9']['max'])
-            params.add('p10', value=priors['p10']['value'], min=priors['p10']['min'], max=priors['p10']['max'])
+            params.add('sigma1', value=np.random.uniform(low=priors['sigma1']['min'], high=priors['sigma1']['max']), min=priors['sigma1']['min'], max=priors['sigma1']['max'])
+            params.add('sigma2', value=np.random.uniform(low=priors['sigma2']['min'], high=priors['sigma2']['max']), min=priors['sigma2']['min'], max=priors['sigma2']['max'])
+            params.add('sigma3', value=np.random.uniform(low=priors['sigma3']['min'], high=priors['sigma3']['max']), min=priors['sigma3']['min'], max=priors['sigma3']['max'])
+
+            params.add('p9',  value=np.random.uniform(low=priors['p9']['min'], high=priors['p9']['max']), min=priors['p9']['min'], max=priors['p9']['max'])
+            params.add('p10', value=np.random.uniform(low=priors['p10']['min'], high=priors['p10']['max']), min=priors['p10']['min'], max=priors['p10']['max'])
 
             # x and y data
             xdata = wave_masked * 1e-4
