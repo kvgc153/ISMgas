@@ -341,14 +341,14 @@ class Fitter:
             
             # Set up lmfit Parameters
             params = Parameters()
-            params.add('p0', value=priors['p0']['value'], min=priors['p0']['min'], max=priors['p0']['max'])
-            params.add('p1', value=priors['p1']['value'], min=priors['p1']['min'], max=priors['p1']['max'])
-            params.add('p2', value=priors['p2']['value'], min=priors['p2']['min'], max=priors['p2']['max'])
-            params.add('p3', value=priors['p3']['value'], min=priors['p3']['min'], max=priors['p3']['max'])
+            params.add('p0', value=np.random.uniform(low=priors['p0']['min'], high=priors['p0']['max']), min=priors['p0']['min'], max=priors['p0']['max'])
+            params.add('p1', value=np.random.uniform(low=priors['p1']['min'], high=priors['p1']['max']), min=priors['p1']['min'], max=priors['p1']['max'])
+            params.add('p2', value=np.random.uniform(low=priors['p2']['min'], high=priors['p2']['max']), min=priors['p2']['min'], max=priors['p2']['max'])
+            params.add('p3', value=np.random.uniform(low=priors['p3']['min'], high=priors['p3']['max']), min=priors['p3']['min'], max=priors['p3']['max'])
 
-            params.add('z1', value=priors['z1']['value'], min=priors['z1']['min'], max=priors['z1']['max'])
+            params.add('z1', value=np.random.uniform(low=priors['z1']['min'], high=priors['z1']['max']), min=priors['z1']['min'], max=priors['z1']['max'])
             
-            params.add('sigma1', value=priors['sigma1']['value'], min=priors['sigma1']['min'], max=priors['sigma1']['max'])
+            params.add('sigma1', value=np.random.uniform(low=priors['sigma1']['min'], high=priors['sigma1']['max']), min=priors['sigma1']['min'], max=priors['sigma1']['max'])
 
             # x and y data
             xdata = wave_masked * 1e-4
