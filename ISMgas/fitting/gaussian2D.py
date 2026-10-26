@@ -4,16 +4,25 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 
 class gaussian2D:
-    def __init__(self, data):
+    def __init__(self, data, tie_sigma=False):
         self.data     = data
         self.results  = {}
+        self.tie_sigma = tie_sigma
+        
     
     def _fit(self, kwargs):
         # initialize a fitting routine
         fit = fitting.LevMarLSQFitter()
-
+        
+        def tie_sigma(model):
+            return model.x_stddev.value
         # initialize a linear model
-        g2d_init = models.Gaussian2D(**kwargs['gaussian2D'])
+        if self.tie_sigma:
+            g2d_init = models.Gaussian2D(**kwargs['gaussian2D'])
+            g2d_init.y_stddev.tied = tie_sigma
+            
+        else:
+            g2d_init = models.Gaussian2D(**kwargs['gaussian2D'])
 
         # fit the data with the fitter, and plot the result
         x,y = np.mgrid[:(np.shape(self.data))[0], :(np.shape(self.data))[1]]
