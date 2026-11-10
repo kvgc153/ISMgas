@@ -1230,3 +1230,60 @@ def runningMedian(x,y,nbins):
 ###########################
 
 
+from ISMgas.fitting.gaussian2D import gaussian2D
+
+def computeSeeing_decals(images_DECALS, photometry_DECALS):
+    """
+    Example usage: 
+    ###########################
+    RA = 231.2874
+    Dec = 42.4646
+
+    gg= GalaxyProperties(
+        ra = RA, 
+        dec = Dec,
+        objid= "desi231"
+    )
+    images_DECALS = gg.decalsFitsAndPng(grab=False,size=500)
+    ###########################
+
+    
+    RA_star1 = 231.2917502
+    Dec_star1 = 42.4657370
+
+    photometry_DECALS = GalaxyProperties.aperture_ab_magnitudes(images_DECALS, RA_star1, Dec_star1, radius_arcsec=2) 
+
+    seeing_list = computeSeeing(photometry_DECALS)
+    """
+    seeing=[]
+    for band in ['g','r','z']:
+
+        ## Get the x,y of the star in question 
+        xFoo = int(photometry_DECALS[band]['x'])
+        yFoo = int(photometry_DECALS[band]['y'])
+        
+        ## Make a cutout from the images_DECALS
+        masked_data = images_DECALS[band]['data'][yFoo-15:yFoo +15, xFoo-15:xFoo+15]
+
+        ## Fit with 2D gaussian
+        dd = gaussian2D(
+            data = masked_data,
+            tie_sigma = True
+        )
+        results = dd._fit({
+            'gaussian2D':{
+                'x_mean' : 15,
+                'y_mean' : 15,
+            }
+        })
+        
+        
+        dd._plotResults(results)
+        print("FWHM(in pixels) ", 2.355*results['stddev_x'], 2.355*results['stddev_y'])
+        print("FWHM(in arcsecond) ",
+             2.355* photometry_DECALS[band]['pixel_scale']*results['stddev_x'],
+             2.355* photometry_DECALS[band]['pixel_scale']* results['stddev_y'])
+        print('\n')
+        seeing.append(2.355* photometry_DECALS[band]['pixel_scale']*results['stddev_x'])
+
+    return(seeing)
