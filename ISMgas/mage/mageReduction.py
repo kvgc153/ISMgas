@@ -15,6 +15,9 @@ class mageRedux:
         }   
         self.stdstar = stdstar
         self.stdstarSpec = ascii.read(self.stdstarDict[self.stdstar]['specFile'], names=["wave", "FLAM16", "flux", "bins"])
+        #Smooth
+        self.stdstarSpec['FLAM16'] = medfilt(self.stdstarSpec['FLAM16'], kernel_size=11)
+        
 
         plt.plot(
             self.stdstarSpec['wave'],
@@ -32,8 +35,9 @@ class mageRedux:
         self.extractWindowMax = extractWindow['max']
 
 
+
     
-    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False):
+    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, scaleError = 1):
     
         extracted_spectra = {}
         objid = self.objid
@@ -110,7 +114,10 @@ class mageRedux:
             ## Extract spectra
             extractWave = wave0
             extractSpec = np.nansum(data*trace2D, axis=0) 
-            extractErr  = np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
+            extractVariation = np.nanstd(data*trace2D, axis=0)
+            extractSNR = extractSpec/extractVariation ## SNR
+  
+            extractErr  = scaleError* np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
 
 
 
@@ -142,15 +149,17 @@ class mageRedux:
     
                 from scipy.interpolate import interp1d
                 ## Flux calibrate
-                f = interp1d(self.stdstarSpec['wave'],  medfilt(self.stdstarSpec['FLAM16'], kernel_size=21), fill_value='extrapolate')
+                f = interp1d(self.stdstarSpec['wave'], self.stdstarSpec['FLAM16'], fill_value='extrapolate')
                 interpolate_flux = f(fooWave)
                 
-                
+                from scipy.ndimage import gaussian_filter
+                extractSpec = gaussian_filter(fooFlux, sigma=100)
+
                 extracted_spectra[order]={
                     'wave': extractWave,
                     'flux': extractSpec, 
                     'error':  extractErr,
-                    'inv_sensitivity': interpolate_flux/extractSpec
+                    'sensitivity': interpolate_flux/extractSpec
                 }
             
             else:
@@ -174,6 +183,16 @@ class mageRedux:
         corrected_spec = {}
     
         common_orders = set(object_spec.keys()) & set(standard_spec.keys())
+        
+        if(plotting):
+            plt.figure(figsize=(12,5))
+            for order in sorted(common_orders):
+                std_wave = standard_spec[order]["wave"]
+                std_flux = standard_spec[order]["flux"]
+                std_inv_sensitivity = standard_spec[order]["sensitivity"]
+                plt.plot(std_wave, 1/std_inv_sensitivity)
+
+            plt.ylim([0,1000])
     
         for order in sorted(common_orders):
     
@@ -185,7 +204,7 @@ class mageRedux:
             # Standard
             std_wave = standard_spec[order]["wave"]
             std_flux = standard_spec[order]["flux"]
-            std_inv_sensitivity = standard_spec[order]["inv_sensitivity"]
+            std_inv_sensitivity = standard_spec[order]["sensitivity"]
                     
             # Determine overlapping wavelength range
             mask = (
@@ -203,7 +222,10 @@ class mageRedux:
             plt.plot(obj_wave,corrected_flux,color='black',drawstyle='steps-mid' )
 
             if(clip_echelle_edges):
-                threshold = np.nanmedian(std_invsens_interp,axis=0) + sigma_threshold*np.nanstd(std_invsens_interp, axis=0)
+
+                corrected_SNR   = corrected_flux/corrected_error
+
+                threshold = np.nanmedian(std_invsens_interp,axis=0) + sigma_threshold*np.nanstd(std_invsens_interp, axis=0) 
                 mask_invsens    = (std_invsens_interp<threshold) ## Apply threshold to clip the edges of the echelle orders 
                 obj_wave        = obj_wave[mask_invsens]
                 corrected_flux  = corrected_flux[mask_invsens]
@@ -254,86 +276,199 @@ class mageRedux:
                 )
                 plt.ylim([0,np.nanmedian(corrected_flux) + np.nanstd(corrected_flux)])
                 plt.xlim([obj_wave[0], obj_wave[-1]])
-                plt.show()            
-    
+                plt.show() 
+
         # Save 
         save_as_pickle(corrected_spec, self.objid + "_extracted_sc.pkl")
             
-    
-    
+        
+        
     def combine_echelle_orders(self,
-                               wave_grid=None,
-                               use_sensitivity=True,
-                               min_weight=0):
+                            wave_grid=None,
+                            use_sensitivity=True,
+                            min_weight=0,
+                            combine_method='weighted'):
+        """
+        This code block is inspired from IFAF's scombine
+        """
         orders = load_pickle(self.objid + "_extracted_sc.pkl")
+
         if wave_grid is None:
             dw = np.min([
                 np.nanmedian(np.diff(order['wave']))
                 for order in orders.values()
             ])
-    
+
             wmin = min(np.nanmin(order['wave']) for order in orders.values())
             wmax = max(np.nanmax(order['wave']) for order in orders.values())
-    
+
             wave_grid = np.arange(wmin, wmax + dw, dw)
-    
+
+        # ----------------------------------------------------------
+        # Arrays used for combination
+        # ----------------------------------------------------------
         numerator = np.zeros_like(wave_grid, dtype=float)
         denominator = np.zeros_like(wave_grid, dtype=float)
-    
+
+        # For simple average
+        flux_sum = np.zeros_like(wave_grid, dtype=float)
+        flux_count = np.zeros_like(wave_grid, dtype=int)
+
         # ----------------------------------------------------------
         # Combine orders
         # ----------------------------------------------------------
         for order in orders.values():
-    
+
             wave = order['wave']
             flux = order['flux']
             err = order['error']
-    
+
             mask = (
                 np.isfinite(wave) &
                 np.isfinite(flux) &
                 np.isfinite(err) &
                 (err > 0)
             )
-    
+
             if np.sum(mask) < 2:
                 continue
-    
+
             wave = wave[mask]
             flux = flux[mask]
             err = err[mask]
-    
-            # interpolate
-            flux_i = np.interp(wave_grid, wave, flux,
-                               left=np.nan, right=np.nan)
-            err_i = np.interp(wave_grid, wave, err,
-                              left=np.nan, right=np.nan)
 
-            weight = 1.0 / err_i**2
-    
-            weight[~np.isfinite(weight)] = 0
-            weight[weight < min_weight] = 0
-    
-            good = np.isfinite(flux_i) & (weight > 0)
-    
-            numerator[good] += flux_i[good] * weight[good]
-            denominator[good] += weight[good]
-    
+            # ------------------------------------------------------
+            # Interpolate onto common wavelength grid
+            # ------------------------------------------------------
+            flux_i = np.interp(
+                wave_grid, wave, flux,
+                left=np.nan, right=np.nan
+            )
+
+            err_i = np.interp(
+                wave_grid, wave, err,
+                left=np.nan, right=np.nan
+            )
+
+            # ------------------------------------------------------
+            # Simple average
+            # ------------------------------------------------------
+            if combine_method.lower() in ['average', 'mean', 'simple']:
+
+                good = (
+                    np.isfinite(flux_i) &
+                    np.isfinite(err_i) &
+                    (err_i > 0)
+                )
+
+                flux_sum[good] += flux_i[good]
+                flux_count[good] += 1
+
+            # ------------------------------------------------------
+            # Weighted average -- IRAF/scombine-like
+            # ------------------------------------------------------
+            elif combine_method.lower() in ['weighted', 'ivar']:
+
+                weight = 1.0 / err_i**2
+
+                weight[~np.isfinite(weight)] = 0
+                weight[weight < min_weight] = 0
+
+                good = np.isfinite(flux_i) & (weight > 0)
+
+                numerator[good] += flux_i[good] * weight[good]
+                denominator[good] += weight[good]
+
+            else:
+                raise ValueError(
+                    "combine_method must be 'average' or 'weighted'"
+                )
+
+        # ----------------------------------------------------------
+        # Construct combined spectrum
+        # ----------------------------------------------------------
         combined_flux = np.full_like(wave_grid, np.nan)
         combined_err = np.full_like(wave_grid, np.nan)
-    
-        good = denominator > 0
-    
-        combined_flux[good] = numerator[good] / denominator[good]
-        combined_err[good] = np.sqrt(1.0 / denominator[good])
-    
+
+        if combine_method.lower() in ['average', 'mean', 'simple']:
+
+            good = flux_count > 0
+
+            combined_flux[good] = (
+                flux_sum[good] / flux_count[good]
+            )
+
+            # Error on the mean.
+            #
+            # Since each order has its own error, propagate the
+            # individual errors rather than assuming identical errors.
+            #
+            # This requires another pass through the orders.
+            error_sum = np.zeros_like(wave_grid, dtype=float)
+
+            for order in orders.values():
+
+                wave = order['wave']
+                flux = order['flux']
+                err = order['error']
+
+                mask = (
+                    np.isfinite(wave) &
+                    np.isfinite(flux) &
+                    np.isfinite(err) &
+                    (err > 0)
+                )
+
+                if np.sum(mask) < 2:
+                    continue
+
+                wave = wave[mask]
+                flux = flux[mask]
+                err = err[mask]
+
+                flux_i = np.interp(
+                    wave_grid, wave, flux,
+                    left=np.nan, right=np.nan
+                )
+
+                err_i = np.interp(
+                    wave_grid, wave, err,
+                    left=np.nan, right=np.nan
+                )
+
+                good = (
+                    np.isfinite(flux_i) &
+                    np.isfinite(err_i) &
+                    (err_i > 0)
+                )
+
+                error_sum[good] += err_i[good]**2
+
+                [good] = (
+                np.sqrt(error_sum[good]) / flux_count[good]
+            )
+
+        elif combine_method.lower() in ['weighted', 'ivar']:
+
+            good = denominator > 0
+
+            combined_flux[good] = (
+                numerator[good] / denominator[good]
+            )
+
+            combined_err[good] = np.sqrt(
+                1.0 / denominator[good]
+            )
+
         extracted_spec = {
             'wave': wave_grid,
             'flux': combined_flux,
-            'error':combined_err
+            'error': combined_err
         }
-    
-        save_as_pickle(extracted_spec, self.objid + "_extracted_sc_ec.pkl")
+
+        save_as_pickle(
+            extracted_spec,
+            self.objid + "_extracted_sc_ec.pkl"
+        )
+
         return wave_grid, combined_flux, combined_err, denominator
-            
-            
