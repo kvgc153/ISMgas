@@ -45,7 +45,7 @@ class mageRedux:
 
 
     
-    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, clip_threshold=0.3, scaleError = 1):
+    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, clip_threshold=0.4, scaleError = 1):
     
         extracted_spectra = {}
         objid = self.objid
