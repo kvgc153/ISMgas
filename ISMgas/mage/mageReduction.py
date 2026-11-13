@@ -4,8 +4,16 @@ from scipy.signal import medfilt
 from astropy.io import ascii, fits
 import matplotlib.pyplot as plt 
 import numpy as np
+from lmfit import Model
 from ISMgas.visualization.fits import ScaleImage
 from ISMgas.SupportingFunctions import load_pickle, interpolateData, save_as_pickle
+from numpy import exp, loadtxt, pi, sqrt
+def gaussian(x, amp, cen, wid):
+    """1-d gaussian: gaussian(x, amp, cen, wid)"""
+    return (amp / (sqrt(2*pi) * wid)) * exp(-(x-cen)**2 / (2*wid**2))
+
+
+
 class mageRedux:
     def __init__(self, objid, folder, extractWindow, stdstar):
         
@@ -37,7 +45,7 @@ class mageRedux:
 
 
     
-    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, scaleError = 1):
+    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, clip_threshold=0.3, scaleError = 1):
     
         extracted_spectra = {}
         objid = self.objid
@@ -93,7 +101,44 @@ class mageRedux:
             ## Final form of the extracted trace
             trace2D = data*0
             for idx in range(data.shape[1]):
-                trace2D[round(offsets_fit[idx])- self.extractWindowMin: round(offsets_fit[idx]) + self.extractWindowMax+1,idx] =1 
+                data_extract = data[:,idx].copy()
+                idx_extract = np.asarray(list(range(len(data_extract))))
+
+                ## Clean 
+                mask = ~np.isnan(data_extract)
+                data_extract = data_extract[mask]
+                idx_extract  = idx_extract[mask]
+
+                if(standardstar):
+                    ## Fit gaussian to find the exact center 
+                    model = Model(gaussian)
+
+                    params = model.make_params() 
+
+                    params['cen'].set(value = offsets_fit[idx])
+                    params['wid'].set(value = 5,min=1,max=100)
+                    params['amp'].set(value = 5,min=0.1,max=100)
+
+                    result = model.fit(data_extract, params, x=idx_extract)
+
+                    # result.plot()
+                    # plt.close()
+                    # plt.figure()
+                    # plt.plot(idx_extract, data_extract)
+                    # plt.show()
+                    # print(result.params['cen'].value,offsets_fit[idx] )
+
+                    trace2D[
+                        round(result.params['cen'].value) - self.extractWindowMin: 
+                        round(result.params['cen'].value) + self.extractWindowMax+1,
+                        idx] =1 
+
+                else:
+    
+                    trace2D[
+                        round(offsets_fit[idx]) - self.extractWindowMin: 
+                        round(offsets_fit[idx]) + self.extractWindowMax+1,
+                        idx] =1 
     
             if(plotting):
                 plt.figure(figsize=(12,12))
@@ -136,10 +181,9 @@ class mageRedux:
                     alpha       = 0.25,
                     color='gray'
                 )
-                plt.ylim(ylim)
-                plt.ylim(ylim)
+                plt.ylim([0,None])
                 plt.xlim([wave0[0], wave0[-1]])
-                plt.show()
+              
     
             if(standardstar):
     
@@ -151,9 +195,27 @@ class mageRedux:
                 ## Flux calibrate
                 f = interp1d(self.stdstarSpec['wave'], self.stdstarSpec['FLAM16'], fill_value='extrapolate')
                 interpolate_flux = f(fooWave)
-                
+
+
                 from scipy.ndimage import gaussian_filter
                 extractSpec = gaussian_filter(fooFlux, sigma=100)
+
+                ## Clip the sensitivity function at the edges 
+                threshold = clip_threshold # 20% of peak flux
+
+                mask_thresh = extractSpec < threshold * np.nanmax(extractSpec)
+
+                extractWave[mask_thresh] = np.nan
+                extractSpec[mask_thresh] = np.nan
+                extractErr[mask_thresh] = np.nan
+
+
+                plt.plot(
+                        extractWave,
+                        extractSpec,
+                        color='red',
+                        drawstyle='steps-mid'
+                    )
 
                 extracted_spectra[order]={
                     'wave': extractWave,
@@ -168,10 +230,12 @@ class mageRedux:
                     'flux': extractSpec,
                     'error' : extractErr
                 }
+
+            plt.show()
         # Save the extracted spectra 
         save_as_pickle(extracted_spectra, objid + "_extracted.pkl")
     
-    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None], clip_echelle_edges=True, sigma_threshold=1):
+    def correctSensitivity(self, kernel_size_ang=50, plotting=True,zs=0, ylim=[0,None], sigma_threshold=1):
         """
         Given a object extracted and a standard star extracted pickle files, 
         flux calibrate the data.
@@ -208,11 +272,17 @@ class mageRedux:
                     
             # Determine overlapping wavelength range
             mask = (
-                (obj_wave >= std_wave.min()) &
-                (obj_wave <= std_wave.max())
+                (obj_wave >= np.nanmin(std_wave)) &
+                (obj_wave <= np.nanmax(std_wave))
             )
+            # mask = ~np.isnan(std_wave)
+            obj_wave = obj_wave[mask]
+            obj_flux = obj_flux[mask]
+            obj_error = obj_error[mask]
+
+
             std_invsens_interp = interpolateData(x=std_wave,y=std_inv_sensitivity,xnew=obj_wave, fill_value='extrapolate')
-            std_invsens_interp = medfilt(std_invsens_interp, kernel_size=101) ## Smooth out any artifacts
+            # std_invsens_interp = medfilt(std_invsens_interp, kernel_size=101) ## Smooth out any artifacts
                         
             corrected_flux = obj_flux * std_invsens_interp
             corrected_error = obj_error * std_invsens_interp
@@ -221,30 +291,8 @@ class mageRedux:
             plt.figure(figsize=(12,5))
             plt.plot(obj_wave,corrected_flux,color='black',drawstyle='steps-mid' )
 
-            if(clip_echelle_edges):
 
-                corrected_SNR   = corrected_flux/corrected_error
-
-                threshold = np.nanmedian(std_invsens_interp,axis=0) + sigma_threshold*np.nanstd(std_invsens_interp, axis=0) 
-                mask_invsens    = (std_invsens_interp<threshold) ## Apply threshold to clip the edges of the echelle orders 
-                obj_wave        = obj_wave[mask_invsens]
-                corrected_flux  = corrected_flux[mask_invsens]
-                corrected_error = corrected_error[mask_invsens]
-                std_invsens_interp = std_invsens_interp[mask_invsens]
-
-                if(obj_wave[0]<4500): 
-                    ## Further trim the edges in the bluer orders
-                    startIdx= 200
-                    endIdx  = -200
-                    obj_wave = obj_wave[startIdx:endIdx]
-                    corrected_flux = corrected_flux[startIdx:endIdx]
-                    corrected_error = corrected_error[startIdx:endIdx]
-                    std_invsens_interp = std_invsens_interp[startIdx:endIdx]
-
-
-                print(len(obj_wave), len(corrected_flux),len(std_invsens_interp))
-
-            plt.plot(obj_wave,corrected_flux,color='red',drawstyle='steps-mid', label='clipped' )
+            # plt.plot(obj_wave,corrected_flux,color='red',drawstyle='steps-mid', label='clipped' )
             plt.ylim([0,np.nanmedian(corrected_flux) + np.nanstd(corrected_flux)])
             # plt.xlim([obj_wave[0], obj_wave[-1]])
             plt.show()
