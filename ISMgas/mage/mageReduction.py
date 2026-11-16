@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lmfit import Model
 from ISMgas.visualization.fits import ScaleImage
-from ISMgas.SupportingFunctions import load_pickle, interpolateData, save_as_pickle
-from numpy import exp, loadtxt, pi, sqrt
+from ISMgas.SupportingFunctions import load_pickle, interpolateData, save_as_pickle,plotWithError
+from numpy import exp, pi, sqrt
+from scipy.ndimage import gaussian_filter
 def gaussian(x, amp, cen, wid):
     """1-d gaussian: gaussian(x, amp, cen, wid)"""
     return (amp / (sqrt(2*pi) * wid)) * exp(-(x-cen)**2 / (2*wid**2))
@@ -197,7 +198,7 @@ class mageRedux:
                 interpolate_flux = f(fooWave)
 
 
-                from scipy.ndimage import gaussian_filter
+                
                 extractSpec = gaussian_filter(fooFlux, sigma=100)
 
                 ## Clip the sensitivity function at the edges 
@@ -221,10 +222,11 @@ class mageRedux:
                     'wave': extractWave,
                     'flux': extractSpec, 
                     'error':  extractErr,
-                    'sensitivity': interpolate_flux/extractSpec
+                    'sensitivity': 1/extractSpec
                 }
             
             else:
+                
                 extracted_spectra[order]= {
                     'wave': extractWave,
                     'flux': extractSpec,
@@ -240,7 +242,6 @@ class mageRedux:
         Given a object extracted and a standard star extracted pickle files, 
         flux calibrate the data.
         """
-        objid = self.objid 
         object_spec = load_pickle(self.objid + "_extracted.pkl")
         standard_spec = load_pickle(self.stdstar + "_extracted.pkl")
     
@@ -281,32 +282,23 @@ class mageRedux:
             obj_error = obj_error[mask]
 
 
-            std_invsens_interp = interpolateData(x=std_wave,y=std_inv_sensitivity,xnew=obj_wave, fill_value='extrapolate')
+            std_invsens_interp = interpolateData(x=std_wave,y=std_inv_sensitivity,xnew=obj_wave)
             # std_invsens_interp = medfilt(std_invsens_interp, kernel_size=101) ## Smooth out any artifacts
                         
             corrected_flux = obj_flux * std_invsens_interp
-            corrected_error = obj_error * std_invsens_interp
+            scale_error = (1/std_invsens_interp) * (1/gaussian_filter(obj_flux, sigma=100))
+            scale_error /= np.nanmean(scale_error) ## normalize 
 
-            ## plot inv_sens curve
-            plt.figure(figsize=(12,5))
-            plt.plot(obj_wave,corrected_flux,color='black',drawstyle='steps-mid' )
-
-
-            # plt.plot(obj_wave,corrected_flux,color='red',drawstyle='steps-mid', label='clipped' )
-            plt.ylim([0,np.nanmedian(corrected_flux) + np.nanstd(corrected_flux)])
-            # plt.xlim([obj_wave[0], obj_wave[-1]])
+            plt.figure()
+            plt.plot(
+                obj_wave,
+                (np.exp(1/scale_error) - 1.72)**2
+            )
             plt.show()
+            corrected_error = obj_error * std_invsens_interp * (np.exp(1/scale_error)-1.72)**2 ## This should scale the error where the edges have higher error
 
-            corrected_spec[order] = {
-                "wave": obj_wave,
-                "flux": corrected_flux,
-                "error":corrected_error,
-                "inv_sensitivity": std_invsens_interp,
-            }
-    
+
             if(plotting):
-  
-            
                 plt.figure(figsize=(12,7))
                 plt.plot(
                     obj_wave,
@@ -314,7 +306,6 @@ class mageRedux:
                     color='black',
                     drawstyle='steps-mid'
                 )
-    
                 plt.fill_between(
                     obj_wave,
                     corrected_flux - corrected_error * 1,
@@ -322,9 +313,16 @@ class mageRedux:
                     alpha       = 0.25,
                     color='gray'
                 )
-                plt.ylim([0,np.nanmedian(corrected_flux) + np.nanstd(corrected_flux)])
+                plt.ylim([0,None])
                 plt.xlim([obj_wave[0], obj_wave[-1]])
-                plt.show() 
+
+            corrected_spec[order] = {
+                "wave": obj_wave,
+                "flux": corrected_flux,
+                "error":corrected_error,
+                "inv_sensitivity": std_invsens_interp,
+            }
+
 
         # Save 
         save_as_pickle(corrected_spec, self.objid + "_extracted_sc.pkl")
@@ -333,7 +331,6 @@ class mageRedux:
         
     def combine_echelle_orders(self,
                             wave_grid=None,
-                            use_sensitivity=True,
                             min_weight=0,
                             combine_method='weighted'):
         """
@@ -361,7 +358,6 @@ class mageRedux:
         # For simple average
         flux_sum = np.zeros_like(wave_grid, dtype=float)
         flux_count = np.zeros_like(wave_grid, dtype=int)
-
         # ----------------------------------------------------------
         # Combine orders
         # ----------------------------------------------------------
