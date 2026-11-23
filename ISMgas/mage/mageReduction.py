@@ -51,7 +51,9 @@ class mageRedux:
         extracted_spectra = {}
         objid = self.objid
 
-        
+        trace2D_DB = {}
+
+        ## Define the trace ##
         for order,file in enumerate(sorted(self.files)):
             hdr0 = fits.getheader(file)
             data = fits.getdata(file)
@@ -101,6 +103,10 @@ class mageRedux:
             
             ## Final form of the extracted trace
             trace2D = data*0
+
+
+
+
             for idx in range(data.shape[1]):
                 data_extract = data[:,idx].copy()
                 idx_extract = np.asarray(list(range(len(data_extract))))
@@ -155,7 +161,10 @@ class mageRedux:
                 plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
                 plt.gca().set_aspect(aspect=12)
                 plt.show()
-    
+
+            trace2D_DB[order] = trace2D
+
+
 
             ## Extract spectra
             extractWave = wave0
@@ -234,6 +243,233 @@ class mageRedux:
                 }
 
             plt.show()
+
+        orders_for_profile = [5,6,7,8,9,10]
+
+        plt.figure(figsize=(6,6))
+        profile_collapsed = []
+        for order,file in enumerate(sorted(self.files)):
+            if(order in orders_for_profile):
+                hdr0 = fits.getheader(file)
+                data = fits.getdata(file)
+                error = fits.getdata(file.replace("sum.fits", "sumsig.fits"))
+                trace2D = trace2D_DB[order]
+
+                spatial_profile = np.zeros((self.extractWindowMax+ self.extractWindowMin + 1 ,data.shape[1]))*np.nan
+
+                for idx in range(data.shape[1]):
+                    foo = trace2D[:,idx] * data[:,idx]
+                    mask = (foo>0)
+                    foo_trace = foo[mask]
+                    try:
+                        spatial_profile[:,idx] = foo_trace
+                    except ValueError as e:
+                        pass ## Not all pixels will have same shape due to rounding errors from fitting the profile. This is fine as long as there are enough pixels which there should be 
+
+                profile_collapse = np.nansum(np.asarray(spatial_profile),axis=1)
+                profile_collapse /= np.nanmax(profile_collapse,axis=0)
+                profile_collapsed.append(profile_collapse)
+                plt.plot(
+                    profile_collapse,
+                    drawstyle='steps-mid',
+                    lw=2,
+                    label=order
+                )
+        obj_spatial_profile = np.nanmean(np.asarray(profile_collapsed), axis=0)
+        plt.plot(
+            obj_spatial_profile,
+            color='black',
+            drawstyle='steps-mid',
+            lw=3,
+            label='final profile'
+        )
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        extracted_spectra = {}
+        objid = self.objid
+
+        trace2D_DB = {}
+
+        ## Define the trace ##
+        for order,file in enumerate(sorted(self.files)):
+            hdr0 = fits.getheader(file)
+            data = fits.getdata(file)
+            error = fits.getdata(file.replace("sum.fits", "sumsig.fits"))
+            
+            wave0 = (np.arange(hdr0['NAXIS1']) - hdr0['CRPIX1'] + 1) * hdr0['CD1_1'] + hdr0['CRVAL1']
+
+            data_mask = (data==0) ## This traces how the slit changes along the dispersion direction
+            data_mask.astype(int)
+            trace2D = data*0
+            
+            ## First pass at getting the offsets
+            offsets = []
+            for idx in range(data.shape[1]):
+                offset = 0 
+            
+                dataTop = data_mask[:round(hdr0['OBJPOS']), idx] 
+                dataBottom = data_mask[round(hdr0['OBJPOS']):, idx]
+        
+                offsetTop = np.nansum(dataTop,axis=0) ## in pixels
+                offsetBottom = np.nansum(dataBottom,axis=0) ## in pixels
+    
+                offsets.append(round(hdr0['OBJPOS']) + offsetTop- offsetBottom)
+                trace2D[
+                    round(hdr0['OBJPOS'])- self.extractWindowMin + (offsetTop- offsetBottom): round(hdr0['OBJPOS'])+ self.extractWindowMax+1 + (offsetTop- offsetBottom),
+                    idx
+                    ] =1 
+    
+            idxs = list(range(data.shape[1]))
+    
+            # Use a cubic fit to get a functional form for the offsets
+            deg = 3  # cubic fit
+            
+            # polynomial fit
+            coeffs = np.polyfit(idxs, offsets, deg)
+            poly = np.poly1d(coeffs)
+            
+            # evaluate on dense grid
+            offsets_fit = poly(idxs)
+            
+            ## Final form of the extracted trace
+            trace2D = data*0
+
+
+
+
+            for idx in range(data.shape[1]):
+                data_extract = data[:,idx].copy()
+                idx_extract = np.asarray(list(range(len(data_extract))))
+
+                ## Clean 
+                mask = ~np.isnan(data_extract)
+                data_extract = data_extract[mask]
+                idx_extract  = idx_extract[mask]
+
+                if(standardstar):
+                    ## Fit gaussian to find the exact center 
+                    model = Model(gaussian)
+
+                    params = model.make_params() 
+
+                    params['cen'].set(value = offsets_fit[idx])
+                    params['wid'].set(value = 5,min=1,max=100)
+                    params['amp'].set(value = 5,min=0.1,max=100)
+
+                    result = model.fit(data_extract, params, x=idx_extract)
+
+                    # result.plot()
+                    # plt.close()
+                    # plt.figure()
+                    # plt.plot(idx_extract, data_extract)
+                    # plt.show()
+                    # print(result.params['cen'].value,offsets_fit[idx] )
+
+                    trace2D[
+                        round(result.params['cen'].value) - self.extractWindowMin: 
+                        round(result.params['cen'].value) + self.extractWindowMax+1,
+                        idx] =1 
+
+                else:
+    
+                    trace2D[
+                        round(offsets_fit[idx]) - self.extractWindowMin: 
+                        round(offsets_fit[idx]) + self.extractWindowMax+1,
+                        idx] = obj_spatial_profile 
+    
+            if(plotting):
+
+                plt.figure(figsize=(12,12))
+                ScaleImage(data).plot()
+                plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
+                plt.gca().set_aspect(aspect=12)
+                plt.show()
+
+            trace2D_DB[order] = trace2D
+
+
+
+            ## Extract spectra
+            extractWave = wave0
+            extractSpec = np.nansum(data*trace2D, axis=0) 
+            extractVariation = np.nanstd(data*trace2D, axis=0)
+            extractSNR = extractSpec/extractVariation ## SNR
+  
+            extractErr  = scaleError* np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
+
+
+
+            if(plotting):
+                plt.figure(figsize=(12,7))
+                plt.plot(
+                    extractWave,
+                    extractSpec,
+                    color='black',
+                    drawstyle='steps-mid'
+                )
+                plt.fill_between(
+                    extractWave,
+                    extractSpec - extractErr * 1,
+                    extractSpec + extractErr * 1,
+                    alpha       = 0.25,
+                    color='gray'
+                )
+                plt.ylim([0,None])
+                plt.xlim([wave0[0], wave0[-1]])
+              
+    
+            if(standardstar):
+    
+                fooWave = extractWave
+                fooFlux  = extractSpec
+                fooError = extractErr
+    
+                from scipy.interpolate import interp1d
+                ## Flux calibrate
+                f = interp1d(self.stdstarSpec['wave'], self.stdstarSpec['FLAM16'], fill_value='extrapolate')
+                interpolate_flux = f(fooWave)
+
+
+                
+                extractSpec = gaussian_filter(fooFlux, sigma=100)
+
+                ## Clip the sensitivity function at the edges 
+                threshold = clip_threshold # 20% of peak flux
+
+                mask_thresh = extractSpec < threshold * np.nanmax(extractSpec)
+
+                extractWave[mask_thresh] = np.nan
+                extractSpec[mask_thresh] = np.nan
+                extractErr[mask_thresh] = np.nan
+
+
+                plt.plot(
+                        extractWave,
+                        extractSpec,
+                        color='red',
+                        drawstyle='steps-mid'
+                    )
+
+                extracted_spectra[order]={
+                    'wave': extractWave,
+                    'flux': extractSpec, 
+                    'error':  extractErr,
+                    'sensitivity': 1/extractSpec
+                }
+            
+            else:
+                
+                extracted_spectra[order]= {
+                    'wave': extractWave,
+                    'flux': extractSpec,
+                    'error' : extractErr
+                }
+
+            plt.show()
+        
         # Save the extracted spectra 
         save_as_pickle(extracted_spectra, objid + "_extracted.pkl")
     
