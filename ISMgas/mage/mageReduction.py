@@ -9,6 +9,7 @@ from ISMgas.visualization.fits import ScaleImage
 from ISMgas.SupportingFunctions import load_pickle, interpolateData, save_as_pickle,plotWithError
 from numpy import exp, pi, sqrt
 from scipy.ndimage import gaussian_filter
+from scipy.signal import correlate
 def gaussian(x, amp, cen, wid):
     """1-d gaussian: gaussian(x, amp, cen, wid)"""
     return (amp / (sqrt(2*pi) * wid)) * exp(-(x-cen)**2 / (2*wid**2))
@@ -260,6 +261,7 @@ class mageRedux:
                 for idx in range(data.shape[1]):
                     foo = trace2D[:,idx] * data[:,idx]
                     mask = (foo>0)
+
                     foo_trace = foo[mask]
                     try:
                         spatial_profile[:,idx] = foo_trace
@@ -269,6 +271,7 @@ class mageRedux:
                 profile_collapse = np.nansum(np.asarray(spatial_profile),axis=1)
                 profile_collapse /= np.nanmax(profile_collapse,axis=0)
                 profile_collapsed.append(profile_collapse)
+
                 plt.plot(
                     profile_collapse,
                     drawstyle='steps-mid',
@@ -307,38 +310,32 @@ class mageRedux:
             
             ## First pass at getting the offsets
             offsets = []
+            idxs = []
             for idx in range(data.shape[1]):
-                offset = 0 
-            
-                dataTop = data_mask[:round(hdr0['OBJPOS']), idx] 
-                dataBottom = data_mask[round(hdr0['OBJPOS']):, idx]
-        
-                offsetTop = np.nansum(dataTop,axis=0) ## in pixels
-                offsetBottom = np.nansum(dataBottom,axis=0) ## in pixels
+                ## Cross correlate the spatial profile with the data to get the offset  
+
+                foo = correlate(data[:,idx], obj_spatial_profile, mode='same')
+                offset = np.nanargmax(foo)
+                offsets.append(offset)
+                idxs.append(idx)
     
-                offsets.append(round(hdr0['OBJPOS']) + offsetTop- offsetBottom)
-                trace2D[
-                    round(hdr0['OBJPOS'])- self.extractWindowMin + (offsetTop- offsetBottom): round(hdr0['OBJPOS'])+ self.extractWindowMax+1 + (offsetTop- offsetBottom),
-                    idx
-                    ] =1 
-    
-            idxs = list(range(data.shape[1]))
-    
+
+       
             # Use a cubic fit to get a functional form for the offsets
             deg = 3  # cubic fit
             
             # polynomial fit
             coeffs = np.polyfit(idxs, offsets, deg)
             poly = np.poly1d(coeffs)
-            
+
+            idxs = list(range(data.shape[1]))
+    
             # evaluate on dense grid
             offsets_fit = poly(idxs)
             
             ## Final form of the extracted trace
             trace2D = data*0
-
-
-
+    
 
             for idx in range(data.shape[1]):
                 data_extract = data[:,idx].copy()
@@ -374,11 +371,14 @@ class mageRedux:
                         idx] =1 
 
                 else:
-    
-                    trace2D[
-                        round(offsets_fit[idx]) - self.extractWindowMin: 
-                        round(offsets_fit[idx]) + self.extractWindowMax+1,
-                        idx] = obj_spatial_profile 
+                    
+                    if((offsets_fit[idx] - self.extractWindowMin)<0):
+                        offsets_fit[idx] = 0
+                    else:    
+                        trace2D[
+                            round(offsets_fit[idx]) - self.extractWindowMin: 
+                            round(offsets_fit[idx]) + self.extractWindowMax+1,
+                            idx] = obj_spatial_profile 
     
             if(plotting):
 
