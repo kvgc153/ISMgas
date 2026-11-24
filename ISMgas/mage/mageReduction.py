@@ -375,10 +375,25 @@ class mageRedux:
                     if((offsets_fit[idx] - self.extractWindowMin)<0):
                         offsets_fit[idx] = 0
                     else:    
+                        ## Deal with fractional pixel offsets 
+                        x = np.arange(obj_spatial_profile.shape[0])
+                        y = obj_spatial_profile
+                        ## Interpolate to a finer grid to get the fractional pixel offsets -- similar to how we deal with for NIRES and KCWI
+                        scale_factor = 10
+                        xnew = np.arange(0, len(x)-1+1/scale_factor, 1/scale_factor)
+                        y_interp = interpolateData(x=x, y=y, xnew=xnew)
+
+                        ## Roll the interpolated profile to the offset
+                        roll_offset = int((offsets_fit[idx] - round(offsets_fit[idx])) * scale_factor)
+                        y_interp_roll = np.roll(y_interp, roll_offset)
+
+                        ## Interpolate back to the original grid
+                        y_interp_back = interpolateData(x=xnew, y=y_interp_roll, xnew=x)
+
                         trace2D[
                             round(offsets_fit[idx]) - self.extractWindowMin: 
                             round(offsets_fit[idx]) + self.extractWindowMax+1,
-                            idx] = obj_spatial_profile 
+                            idx] = y_interp_back 
     
             if(plotting):
 
