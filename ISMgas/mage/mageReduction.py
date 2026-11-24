@@ -260,6 +260,14 @@ class mageRedux:
             lw=3,
             label='final profile'
         )
+        obj_spatial_profile = obj_spatial_profile - np.nanmin(obj_spatial_profile)
+        plt.plot(
+            obj_spatial_profile,
+            color='black',
+            drawstyle='steps-mid',
+            lw=3,
+            label='final profile corrected'
+                )
         plt.title("Spatial profile of trace")
         plt.legend()
         plt.tight_layout()
@@ -361,13 +369,13 @@ class mageRedux:
             if(plotting):
 
                 plt.figure(figsize=(12,12))
-                plt.subplot(4,1,1)
+                plt.subplot(4,1,2)
                 ScaleImage(data).plot()
                 plt.gca().set_aspect(aspect=12)
                 
                 plt.tight_layout()
 
-                plt.subplot(4,1,2)
+                plt.subplot(4,1,1)
                 ScaleImage(data).plot()
                 plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
                 plt.gca().set_aspect(aspect=12)
