@@ -47,7 +47,7 @@ class mageRedux:
 
 
     
-    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, clip_threshold=0.4, scaleError = 1):
+    def extractAndPlot(self,  ylim=[0,1200], plotting=True, standardstar=False, clip_threshold=0.4, scaleError = 1, debug=False):
     
         extracted_spectra = {}
         objid = self.objid
@@ -62,7 +62,7 @@ class mageRedux:
             
             wave0 = (np.arange(hdr0['NAXIS1']) - hdr0['CRPIX1'] + 1) * hdr0['CD1_1'] + hdr0['CRVAL1']
     
-            if(plotting):
+            if(debug):
                 plt.figure(figsize=(12,12))
                 ScaleImage(data).plot()
                 plt.gca().set_aspect(aspect=12)
@@ -117,38 +117,12 @@ class mageRedux:
                 data_extract = data_extract[mask]
                 idx_extract  = idx_extract[mask]
 
-                if(standardstar):
-                    ## Fit gaussian to find the exact center 
-                    model = Model(gaussian)
-
-                    params = model.make_params() 
-
-                    params['cen'].set(value = offsets_fit[idx])
-                    params['wid'].set(value = 5,min=1,max=100)
-                    params['amp'].set(value = 5,min=0.1,max=100)
-
-                    result = model.fit(data_extract, params, x=idx_extract)
-
-                    # result.plot()
-                    # plt.close()
-                    # plt.figure()
-                    # plt.plot(idx_extract, data_extract)
-                    # plt.show()
-                    # print(result.params['cen'].value,offsets_fit[idx] )
-
-                    trace2D[
-                        round(result.params['cen'].value) - self.extractWindowMin: 
-                        round(result.params['cen'].value) + self.extractWindowMax+1,
-                        idx] =1 
-
-                else:
+                trace2D[
+                    round(offsets_fit[idx]) - self.extractWindowMin: 
+                    round(offsets_fit[idx]) + self.extractWindowMax+1,
+                    idx] =1 
     
-                    trace2D[
-                        round(offsets_fit[idx]) - self.extractWindowMin: 
-                        round(offsets_fit[idx]) + self.extractWindowMax+1,
-                        idx] =1 
-    
-            if(plotting):
+            if(debug):
                 plt.figure(figsize=(12,12))
                 ScaleImage(data).plot() 
                 plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
@@ -177,7 +151,7 @@ class mageRedux:
 
 
 
-            if(plotting):
+            if(debug):
                 plt.figure(figsize=(12,7))
                 plt.plot(
                     extractWave,
@@ -286,6 +260,7 @@ class mageRedux:
             lw=3,
             label='final profile'
         )
+        plt.title("Spatial profile of trace")
         plt.legend()
         plt.tight_layout()
         plt.show()
@@ -300,6 +275,7 @@ class mageRedux:
         for order,file in enumerate(sorted(self.files)):
             hdr0 = fits.getheader(file)
             data = fits.getdata(file)
+            data_traceextract = gaussian_filter(data, sigma=(0,4)) ## Smooth along the dispersion direction to reduce noise
             error = fits.getdata(file.replace("sum.fits", "sumsig.fits"))
             
             wave0 = (np.arange(hdr0['NAXIS1']) - hdr0['CRPIX1'] + 1) * hdr0['CD1_1'] + hdr0['CRVAL1']
@@ -312,13 +288,14 @@ class mageRedux:
             offsets = []
             idxs = []
             for idx in range(data.shape[1]):
-                ## Cross correlate the spatial profile with the data to get the offset  
-
-                foo = correlate(data[:,idx], obj_spatial_profile, mode='same')
+                ## Cross correlate the spatial profile with the data to get the offset
+                data_traceextract[:4,:] = np.nan ## Avoid edge effects from the cross correlation
+                data_traceextract[-4:,:] = np.nan
+                foo = correlate(data_traceextract[:,idx], obj_spatial_profile, mode='same')
                 offset = np.nanargmax(foo)
                 offsets.append(offset)
                 idxs.append(idx)
-    
+                
 
        
             # Use a cubic fit to get a functional form for the offsets
@@ -335,7 +312,6 @@ class mageRedux:
             
             ## Final form of the extracted trace
             trace2D = data*0
-    
 
             for idx in range(data.shape[1]):
                 data_extract = data[:,idx].copy()
@@ -346,62 +322,29 @@ class mageRedux:
                 data_extract = data_extract[mask]
                 idx_extract  = idx_extract[mask]
 
-                if(standardstar):
-                    ## Fit gaussian to find the exact center 
-                    model = Model(gaussian)
+        
+                if((offsets_fit[idx] - self.extractWindowMin)<0):
+                    offsets_fit[idx] = 0
+                else:    
+                    ## Deal with fractional pixel offsets 
+                    x = np.arange(obj_spatial_profile.shape[0])
+                    y = obj_spatial_profile
+                    ## Interpolate to a finer grid to get the fractional pixel offsets -- similar to how we deal with for NIRES and KCWI
+                    scale_factor = 25
+                    xnew = np.arange(0, len(x)-1+1/scale_factor, 1/scale_factor)
+                    y_interp = interpolateData(x=x, y=y, xnew=xnew)
 
-                    params = model.make_params() 
+                    ## Roll the interpolated profile to the offset
+                    roll_offset = int((offsets_fit[idx] - round(offsets_fit[idx])) * scale_factor)
+                    y_interp_roll = np.roll(y_interp, roll_offset)
 
-                    params['cen'].set(value = offsets_fit[idx])
-                    params['wid'].set(value = 5,min=1,max=100)
-                    params['amp'].set(value = 5,min=0.1,max=100)
-
-                    result = model.fit(data_extract, params, x=idx_extract)
-
-                    # result.plot()
-                    # plt.close()
-                    # plt.figure()
-                    # plt.plot(idx_extract, data_extract)
-                    # plt.show()
-                    # print(result.params['cen'].value,offsets_fit[idx] )
+                    ## Interpolate back to the original grid
+                    y_interp_back = interpolateData(x=xnew, y=y_interp_roll, xnew=x)
 
                     trace2D[
-                        round(result.params['cen'].value) - self.extractWindowMin: 
-                        round(result.params['cen'].value) + self.extractWindowMax+1,
-                        idx] =1 
-
-                else:
-                    
-                    if((offsets_fit[idx] - self.extractWindowMin)<0):
-                        offsets_fit[idx] = 0
-                    else:    
-                        ## Deal with fractional pixel offsets 
-                        x = np.arange(obj_spatial_profile.shape[0])
-                        y = obj_spatial_profile
-                        ## Interpolate to a finer grid to get the fractional pixel offsets -- similar to how we deal with for NIRES and KCWI
-                        scale_factor = 10
-                        xnew = np.arange(0, len(x)-1+1/scale_factor, 1/scale_factor)
-                        y_interp = interpolateData(x=x, y=y, xnew=xnew)
-
-                        ## Roll the interpolated profile to the offset
-                        roll_offset = int((offsets_fit[idx] - round(offsets_fit[idx])) * scale_factor)
-                        y_interp_roll = np.roll(y_interp, roll_offset)
-
-                        ## Interpolate back to the original grid
-                        y_interp_back = interpolateData(x=xnew, y=y_interp_roll, xnew=x)
-
-                        trace2D[
-                            round(offsets_fit[idx]) - self.extractWindowMin: 
-                            round(offsets_fit[idx]) + self.extractWindowMax+1,
-                            idx] = y_interp_back 
-    
-            if(plotting):
-
-                plt.figure(figsize=(12,12))
-                ScaleImage(data).plot()
-                plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
-                plt.gca().set_aspect(aspect=12)
-                plt.show()
+                        round(offsets_fit[idx]) - self.extractWindowMin: 
+                        round(offsets_fit[idx]) + self.extractWindowMax+1,
+                        idx] = y_interp_back 
 
             trace2D_DB[order] = trace2D
 
@@ -412,13 +355,27 @@ class mageRedux:
             extractSpec = np.nansum(data*trace2D, axis=0) 
             extractVariation = np.nanstd(data*trace2D, axis=0)
             extractSNR = extractSpec/extractVariation ## SNR
-  
             extractErr  = scaleError* np.sqrt(np.nansum((error**2)*trace2D, axis=0)) # in quadrature
 
-
-
+        
             if(plotting):
-                plt.figure(figsize=(12,7))
+
+                plt.figure(figsize=(12,12))
+                plt.subplot(4,1,1)
+                ScaleImage(data).plot()
+                plt.gca().set_aspect(aspect=12)
+                
+                plt.tight_layout()
+
+                plt.subplot(4,1,2)
+                ScaleImage(data).plot()
+                plt.imshow(trace2D, origin='lower', cmap = 'rainbow', alpha = 0.3)       
+                plt.gca().set_aspect(aspect=12)
+
+                plt.tight_layout()
+
+                plt.subplot(4,1,3)
+
                 plt.plot(
                     extractWave,
                     extractSpec,
@@ -434,7 +391,23 @@ class mageRedux:
                 )
                 plt.ylim([0,None])
                 plt.xlim([wave0[0], wave0[-1]])
-              
+                plt.tight_layout()
+
+                plt.subplot(4,1,4)
+
+                plt.plot(
+                    extractWave,
+                    extractSpec/medfilt(extractSpec, kernel_size=501),
+                    color='black',
+                    drawstyle='steps-mid'
+                )
+                plt.ylim([0,2])
+                plt.xlim([wave0[0], wave0[-1]])
+                plt.title("Normalized spectrum")
+                plt.tight_layout()
+
+                plt.savefig(self.objid + "_order_" + str(order) + ".png", dpi=300)
+
     
             if(standardstar):
     
